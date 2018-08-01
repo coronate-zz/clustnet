@@ -12,6 +12,7 @@ from utils_genetic import generate_genoma, parallel_solve, generate_population, 
                           score_genetics, save_solutions, sort_population, population_summary, select_topn, \
                           cross_mutate, score_test, solve_genetic_algorithm, report_genetic_results
 
+
 #random.seed( 1010 )
 
 
@@ -21,17 +22,26 @@ GENETIC_OPTIMIZATION_SOLUTIONS = dict()
 
 
 
-GENLONG = 10
+GENLONG = 15
 FIRST_ITERATION = True
-N = 5
-PC =.5   #Crossover probability
-PM = .25 #Mutation probability
+N = 20
+PC =.25   #Crossover probability
+PM = .1   #Mutation probability
 MAX_ITERATIONS = 1000
-GENOMA_TEST = 50
+GENOMA_TEST = 783
 N_WORKERS = 16
 """
 For a particular genetic algorithm with GENLONG = len_population and 
 """
+
+def save_obj(obj, name ):
+    with open( name + '.pkl', 'wb') as f:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+
+def load_obj(name ):
+    with open( name + '.pkl', 'rb') as f:
+        return pickle.load(f)
+
 
 MODELS_dict = {
 "genetic": 
@@ -41,9 +51,9 @@ MODELS_dict = {
    "params":
        {
        #-------------------------Must Sum GENLONG--------------------------------------------
-       "len_population": 4,  #<---- test GA of POPULATION 0 - (len_population)^2
-       "len_pc": 3,          #<-----test GA of Crossover probability 0-1 in steps of 1/len_pc
-       "len_pm": 3,          #<-----test GA of Mutation probability  0-1 in steps of 1/len_pm 
+       "len_population": 5,  #<---- test GA of POPULATION 0 - (len_population)^2
+       "len_pc": 5,          #<-----test GA of Crossover probability 0-1 in steps of 1/len_pc
+       "len_pm": 5,          #<-----test GA of Mutation probability  0-1 in steps of 1/len_pm 
 
        #-------------------------Long of genetic algorithm to test ----------------------------
        "len_genoma": GENOMA_TEST,
@@ -63,7 +73,38 @@ MODELS_dict = {
     }
 }
 
+
+
 POPULATION_X, SOLUTIONS = solve_genetic_algorithm( GENLONG,  N, PC, PM, N_WORKERS, MAX_ITERATIONS, MODELS_dict["genetic"])
 
 report_genetic_results( POPULATION_X[0]["GENOMA"], MODELS_dict["genetic"])
+
+SOLUTIONS
+pc_total =0
+pm_total =0 
+pop_tot = 0
+cont = 0 
+
+save_obj(SOLUTIONS, "test2")
+
+MODEL = MODELS_dict["genetic"]
+for genoma in SOLUTIONS.keys():
+  score = solutions[genoma]
+  if score >-300:
+    cont+=1
+    end_population = MODEL["params"]["len_population"]
+    end_pc         = end_population + MODEL["params"]["len_pc"]
+    end_pm         = end_pc         + MODEL["params"]["len_pm"]
+
+    POPULATION_SIZE  = int(genoma[:end_population], 2) +1
+    PC               = 1/(int(genoma[end_population: end_pc], 2) +.0001)
+    PM               = 1/(int(genoma[end_pc: end_pm], 2) +.0001)
+
+    pc_total += PC
+    pm_total += PM
+    pop_tot += POPULATION_SIZE
+
+    MAX_ITERATIONS = MODEL["params"]["max_iterations"]
+    GENLONG        = MODEL["params"]["len_genoma"] + 1
+    print("\n\n\nEXECUTE SCORE GENETICS: {} \n\POPULATION_SIZE: {}\n\tpc: {} \n\tPM: {}".format(score, POPULATION_SIZE, PC, PM ))
 

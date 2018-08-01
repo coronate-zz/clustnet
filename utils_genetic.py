@@ -57,7 +57,7 @@ def solve_genetic_algorithm( GENLONG, N, PC, PM, N_WORKERS, MAX_ITERATIONS, MODE
     OBJECTIVE = generate_genoma(GENLONG)
     POPULATION_X = generate_population( N, GENLONG)
 
-    POPULATION_X_test = parallel_solve(POPULATION_X, SOLUTIONS, LOCK, N_WORKERS, MODEL_P  )
+    POPULATION_X = parallel_solve(POPULATION_X, SOLUTIONS, LOCK, N_WORKERS, MODEL_P  )
     POPULATION_X = sort_population(POPULATION_X)
 
 
@@ -170,27 +170,34 @@ def score_genetics(genoma, SOLUTIONS, CORES_PER_SESION, LOCK, MODEL ):
     end_pm         = end_pc         + MODEL["params"]["len_pm"]
 
     POPULATION_SIZE  = int(genoma[:end_population], 2) +1
-    PC               = 1/(int(genoma[end_population: end_pc], 2) +.01)
-    PM               = 1/(int(genoma[end_pc: end_pm], 2) +.01)
+    PC               = 1/(int(genoma[end_population: end_pc], 2) +.0001)
+    PM               = 1/(int(genoma[end_pc: end_pm], 2) +.0001)
 
     MAX_ITERATIONS = MODEL["params"]["max_iterations"]
     GENLONG        = MODEL["params"]["len_genoma"] + 1
     N_WORKERS      = MODEL["params"]["n_workers"]
     LOCK.release()
 
-    print("\n\n\nEXECUTE SCORE GENETICS: \n\tgenlong: {}\n\tpc: {} \n\tPM: {}".format(POPULATION_SIZE, PC, PM ))
+    print("\n\n\nEXECUTE SCORE GENETICS: \n\POPULATION_SIZE: {}\n\tpc: {} \n\tPM: {}".format(POPULATION_SIZE, PC, PM ))
 
     time_start = time.time()
     test ={"model_type": "test",  "function": score_test, "params": { "n_workers": 4}}
     POPULATION_X, SOLUTIONS_TEST = solve_genetic_algorithm(GENLONG, POPULATION_SIZE, PC, PM,  N_WORKERS, MAX_ITERATIONS, test)
     time_end = time.time()
     x, max_score = population_summary(POPULATION_X)
-    final_score = -(GENLONG- max_score) -(time_end - time_start)
-    print("\t\tTIME: {}  MAX_SCORE: {} FINAL_SCORE: {}".format(time_end - time_start, max_score, final_score))
+
+
+    TOTAL_TIME = time_end - time_start
+    SCORE = GENLONG- max_score
+    final_score = -(SCORE) -(.1 *TOTALTIME)
+    print("\t\tTIME: {}  MAX_SCORE: {} FINAL_SCORE: {}".format(TOTAL_TIME, max_score, final_score))
 
     LOCK.acquire()
     SOLUTIONS[genoma]  = final_score
     LOCK.release()
+
+
+
 
 def score_test(genoma, SOLUTIONS,  CORES_PER_SESION, LOCK, MODEL):
     #print("\n\n\n MODEL TYPE: {} , \n\tGENOMA: {}, ".format( MODEL["model_type"], genoma, SOLUTIONS))
