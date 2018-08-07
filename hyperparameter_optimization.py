@@ -49,28 +49,41 @@ MODELS_dict = {
    "function": score_genetics,
    "model_type": "genetic",
    "params":
-       {
-       #-------------------------Must Sum GENLONG--------------------------------------------
-       "len_population": 5,  #<---- test GA of POPULATION 0 - (len_population)^2
-       "len_pc": 5,          #<-----test GA of Crossover probability 0-1 in steps of 1/len_pc
-       "len_pm": 5,          #<-----test GA of Mutation probability  0-1 in steps of 1/len_pm 
+     {
+     #-------------------------Must Sum GENLONG--------------------------------------------
+     "len_population": 5,  #<---- test GA of POPULATION 0 - (len_population)^2
+     "len_pc": 5,          #<-----test GA of Crossover probability 0-1 in steps of 1/len_pc
+     "len_pm": 5,          #<-----test GA of Mutation probability  0-1 in steps of 1/len_pm 
 
-       #-------------------------Long of genetic algorithm to test ----------------------------
-       "len_genoma": GENOMA_TEST,
-       "n_workers": 4,
-       "max_iterations": 1000
-       }
+     #-------------------------Long of genetic algorithm to test ----------------------------
+     "len_genoma": GENOMA_TEST,
+     "n_workers": 4,
+     "max_iterations": 1000
+     }
    },
+
 
 "test": 
     {
-        "function": score_test,
-        "model_type":"test",
-        "params":
-        {
-        "n_workers": 4
-        }
+      "function": score_test,
+      "model_type":"test",
+      "params":
+      {
+      "n_workers": 4
+      }
+    },
+
+"xgboost":
+    {
+      "function":  "score_xgboost",
+      "model_type":"xgboost",
+      "params":
+      {}
+
     }
+
+
+
 }
 
 
@@ -85,12 +98,12 @@ pm_total =0
 pop_tot = 0
 cont = 0 
 
-save_obj(SOLUTIONS, "test2")
+#save_obj(SOLUTIONS, "test2")
 
 MODEL = MODELS_dict["genetic"]
 for genoma in SOLUTIONS.keys():
-  score = solutions[genoma]
-  if score >-300:
+  score = SOLUTIONS[genoma]
+  if score >-200:
     cont+=1
     end_population = MODEL["params"]["len_population"]
     end_pc         = end_population + MODEL["params"]["len_pc"]
@@ -99,7 +112,10 @@ for genoma in SOLUTIONS.keys():
     POPULATION_SIZE  = int(genoma[:end_population], 2) +1
     PC               = 1/(int(genoma[end_population: end_pc], 2) +.0001)
     PM               = 1/(int(genoma[end_pc: end_pm], 2) +.0001)
-
+    if PC >1:
+      PC =1
+    if PM>1:
+      PM =1
     pc_total += PC
     pm_total += PM
     pop_tot += POPULATION_SIZE
@@ -108,3 +124,6 @@ for genoma in SOLUTIONS.keys():
     GENLONG        = MODEL["params"]["len_genoma"] + 1
     print("\n\n\nEXECUTE SCORE GENETICS: {} \n\POPULATION_SIZE: {}\n\tpc: {} \n\tPM: {}".format(score, POPULATION_SIZE, PC, PM ))
 
+print("AVG PM", pm_total/cont)
+print("AVG PC", pc_total/cont)
+print("AVG POP", pop_tot/cont)
