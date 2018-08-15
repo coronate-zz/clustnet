@@ -3,6 +3,20 @@ import numpy as np
 import random
 from xgboost import XGBRegressor
 from xgboost import plot_importance
+import utils_model_genetic 
+import pickle
+from sklearn.metrics import mean_absolute_error, r2_score, mean_squared_error 
+import importlib 
+
+importlib.reload(utils_model_genetic)
+
+def save_obj(obj, name ):
+    with open( name + '.pkl', 'wb') as f:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+
+def load_obj(name ):
+    with open( name + '.pkl', 'rb') as f:
+        return pickle.load(f)
 
 
 def get_exochromoesome(df, models):
@@ -50,10 +64,10 @@ def decode_neuronal_system(neuronal_system, df):
                     the output of the neuron as imput of other neuron
             * baseline_features: The features inside the initial dataset. baseline_features doesn't
                     take into account the output of other neurons.
-            * baseline_features_chormosome: The binary representation of the baseline_features.
+            * baseline_features_chromosome: The binary representation of the baseline_features.
                     Each fature is represented by one bit. If the model in the corresponded neuron
                     is choosen to be trained with baseline_fetaure X, then the position at X
-                    for the baseline_features_chormosome must be equal to 1 (0 if it's not included)
+                    for the baseline_features_chromosome must be equal to 1 (0 if it's not included)
             * exmodel: A dictionary that contains features from other models.
                     There is a entry for each layer in the model:
                           1 2 3
@@ -87,18 +101,18 @@ def decode_neuronal_system(neuronal_system, df):
             #For each model we want to test the features that should be included in the model. 
             features_number = len(df.columns)
             baseline_features = list()
-            baseline_features_chormosome = ""
+            baseline_features_chromosome = ""
             for f in range(features_number):
                 feature = df.columns[f]
                 isincluded = random.choice([True,False])
                 if isincluded:
                     baseline_features.append(feature)
-                    baseline_features_chormosome += "1"
+                    baseline_features_chromosome += "1"
                 else:
-                    baseline_features_chormosome += "0"
+                    baseline_features_chromosome += "0"
 
             NEURONAL_SOLUTIONS[n_col][m_row]["baseline_features"] =  baseline_features
-            NEURONAL_SOLUTIONS[n_col][m_row]["baseline_features_chormosome"] =  baseline_features_chormosome
+            NEURONAL_SOLUTIONS[n_col][m_row]["baseline_features_chromosome"] =  baseline_features_chromosome
             NEURONAL_SOLUTIONS[n_col][m_row]["exmodel"] =  dict()
             
 
@@ -111,7 +125,7 @@ def decode_neuronal_system(neuronal_system, df):
                 else:
 
                     exmodel = list()
-                    exmodel_chormosome = ""
+                    exmodel_chromosome = ""
                     for j_2 in range(len(neuronal_system.index)):
                         m_row_asfeature = neuronal_system.index[j_2]
                         feature = NEURONAL_SOLUTIONS[layer][m_row_asfeature]["name"]
@@ -119,12 +133,12 @@ def decode_neuronal_system(neuronal_system, df):
 
                         if isincluded and NEURONAL_SOLUTIONS[layer][m_row_asfeature]["model_name"] != "":
                             exmodel.append(feature)
-                            exmodel_chormosome += "1"
+                            exmodel_chromosome += "1"
                         else:
-                            exmodel_chormosome += "0"
+                            exmodel_chromosome += "0"
 
                     NEURONAL_SOLUTIONS[n_col][m_row]["exmodel"][layer]["features"]   = exmodel
-                    NEURONAL_SOLUTIONS[n_col][m_row]["exmodel"][layer]["chromosome"] = exmodel_chormosome
+                    NEURONAL_SOLUTIONS[n_col][m_row]["exmodel"][layer]["chromosome"] = exmodel_chromosome
 
     return NEURONAL_SOLUTIONS
 
@@ -166,7 +180,7 @@ def get_intramodel_chromosomes(NEURONAL_SOLUTIONS):
     for n_col in NEURONAL_SOLUTIONS.keys():
         for m_row in NEURONAL_SOLUTIONS[n_col].keys():
             intramodel_chromosome = ""
-            intramodel_chromosome += NEURONAL_SOLUTIONS[n_col][m_row]["baseline_features_chormosome"]
+            intramodel_chromosome += NEURONAL_SOLUTIONS[n_col][m_row]["baseline_features_chromosome"]
             for i in range(len(NEURONAL_SOLUTIONS[n_col][m_row]["exmodel"].keys())):
                 layer = "N_" +  str(i)
                 intramodel_chromosome += NEURONAL_SOLUTIONS[n_col][m_row]["exmodel"][layer]["chromosome"]
@@ -175,14 +189,14 @@ def get_intramodel_chromosomes(NEURONAL_SOLUTIONS):
 
 def get_intramodel_features(NEURONAL_SOLUTIONS, LAYER):
     """
-    This function use the exmodel_chormosome of NEURON Z to return output of the
+    This function use the exmodel_chromosome of NEURON Z to return output of the
     NEURON Y model  as an input for NEURON Z.
     This function must be applied in order beacause it requieres that the output of NEURON Y
     is ready to be used by NEURON Z.
 
     in a NEURONAL_SOLUTIONS system of 4X4:
                             layer0       layer1     layer2   layer3
-    exmodel_chormosome: [1][0][0][1] [0][0][1][1] [][][][] [][][][]
+    exmodel_chromosome: [1][0][0][1] [0][0][1][1] [][][][] [][][][]
 
     In this exmple NEURON Z needs the output neuron0 and neuron3 of layer1
                             needs the output of neuron2 and neuron3 of layer2
@@ -225,25 +239,26 @@ def simulate_output(NEURONAL_SOLUTIONS, layer, df_kfolded):
         if int(n_col.replace("N_", "")) < layer:
             for m_row in NEURONAL_SOLUTIONS[n_col].keys():
                 NEURONAL_SOLUTIONS[n_col][m_row]["output"] = dict()
-                NEURONAL_SOLUTIONS[n_col][m_row]["output"]["all_data"]    = list()
+                NEURONAL_SOLUTIONS[n_col][m_row]["output"]["all_data"] = list()
                 for fold in df_kfolded.keys():
                     NEURONAL_SOLUTIONS[n_col][m_row]["output"][fold] = np.random.rand( len(df_kfolded[fold]["data"]))
-                    NEURONAL_SOLUTIONS[n_col][m_row]["output"]["all_data"].extend(NEURONAL_SOLUTIONS[n_col][m_row]["output"][fold])
+                    if fold != "all_data":
+                        NEURONAL_SOLUTIONS[n_col][m_row]["output"]["all_data"] = np.append(NEURONAL_SOLUTIONS[n_col][m_row]["output"]["all_data"], NEURONAL_SOLUTIONS[n_col][m_row]["output"][fold])
 
 
 def get_models_output(NEURONAL_SOLUTIONS, df_kfolded):
     """
     For LAYER N > 0, some models may need the predictions of previous models.
-    this function returns df_output wich contains an entry for every fold and for 
+    this function returns df_exmodel wich contains an entry for every fold and for 
     the complete data that presents all the output or predictions from the previous
     model as a DataFrame.
 
-    df_output[fold] = NEURONAL_SOLUTIONS[n_col][m_row]["output][fold] for all n_col, m_row
+    df_exmodel[fold] = NEURONAL_SOLUTIONS[n_col][m_row]["output][fold] for all n_col, m_row
 
     """
-    df_output = dict()
+    df_exmodel = dict()
     for fold in df_kfolded.keys():
-        df_output[fold] = pd.DataFrame()
+        df_exmodel[fold] = pd.DataFrame()
         for n_col in NEURONAL_SOLUTIONS.keys():
             for m_row in NEURONAL_SOLUTIONS[n_col].keys():
                 name    = NEURONAL_SOLUTIONS[n_col][m_row]["name"]
@@ -251,33 +266,58 @@ def get_models_output(NEURONAL_SOLUTIONS, df_kfolded):
                 output  = NEURONAL_SOLUTIONS[n_col][m_row]["output"][fold]
                 df_fold = pd.DataFrame( data = output, index =  index, columns = [name])
                 #print(df_fold.head())
-                if len(df_output[fold]) == 0:
-                    df_output[fold] = df_fold
-                    print(df_output[fold].shape)
+                if len(df_exmodel[fold]) == 0:
+                    df_exmodel[fold] = df_fold
+                    #print(df_exmodel[fold].shape)
                 else:
-                    df_output[fold] = df_output[fold].merge(df_fold, right_index = True, left_index = True)
-                    print(df_output[fold].shape)
-    return df_output
+                    df_exmodel[fold] = df_exmodel[fold].merge(df_fold, right_index = True, left_index = True)
+                    #print(df_exmodel[fold].shape)
+    return df_exmodel
 
 
-def get_exmodel_features(NEURONAL_SOLUTIONS):
+def get_exmodel_features(NEURONAL_SOLUTIONS, eval_layer):
     """
-    Append all exmodel output features names to call them from the df_output dataset.
+    Append all exmodel output features names to call them from the df_exmodel dataset.
     """
+    exmodel_features =list()
     for n_col in NEURONAL_SOLUTIONS.keys():
         for m_row in NEURONAL_SOLUTIONS[n_col].keys():
-            NEURONAL`_SOLUTIONS[n_col][m_row]["exmodel_features"] = list()
-            for layer in NEURONAL_SOLUTIONS[n_col][m_row]["exmodel"].keys()
-                NEURONAL_SOLUTIONS[n_col][m_row]["exmodel_features"].append(NEURONAL_SOLUTIONS[n_col][m_row]["exmodel"][layer]["features"])
+            if int(eval_layer.replace("N_", "")) > int(n_col.replace("N_", "")):
+                #A model can use an other neuron output iff the layer of the model is lower
+                #than the neurons layer, i.e it can only used output from already trained 
+                #models.
+                exmodel_features.append(NEURONAL_SOLUTIONS[n_col][m_row]["name"])
+    return exmodel_features
 
-def  transform_KFold(df, K):
+def transform_categorical(df):
+    """
+    Convert categorical variables to Dummies using pd.get_dummies
+    """
+    for col in df.columns:
+        try:
+            df[col] = pd.to_numeric(df[col])
+            print("NUMERIC: ", col)
+        except Exception as e:
+            df_categorical =  pd.get_dummies(df[col])
+            del df[col]
+            df = df.merge(df_categorical, right_index = True, left_index = True)
+            print("CATEGORICAL: ", col)
+    return df
+
+
+def  transform_KFold(df,  y_column, K):
     """
     Divides a DataFrame into K sets using the index. 
     df_kfolded[fold_number]
         df_kfolded[fold_number]["index"]: randomly selected index 
                                           for fold_number fold.
-        df_kfolded[fold_number]["data]:  subset of the DataFrame indexed
-                                         by the selected index.
+
+        df_kfolded[fold_number]["y"]:     subset of the target variable indexed
+                                          by the selected index.
+
+        df_kfolded[fold_number]["data"]:  subset of the DataFrame indexed
+                                          by the selected index. 
+                                          target variable excluded
         df_kfolded["all_data"][...]
     """
     df = df.reset_index()
@@ -290,23 +330,36 @@ def  transform_KFold(df, K):
         df_kfolded[k] = dict()
         df_copy = df.copy()
         if k == K-1:
+            df_kfolded[k]["y"] = df_copy.loc[all_index, y_column]
+            del df_copy[y_column]
             df_kfolded[k]["data"]  = df_copy.loc[all_index]
             df_kfolded[k]["index"] = all_index
+            if y_column in df_kfolded[k]["data"]:
+                print("\n\n\nERROR: Target variable in df_kfolded[k][data]")
         else:
 
             fold_index = np.random.choice(all_index, obs_per_fold, replace= False)
-            fold_data = df_copy.loc[fold_index]
+            fold_data  = df_copy.loc[fold_index]
+            fold_y     = fold_data[y_column]
+            del fold_data[y_column]
+
             all_index = [item for item in all_index if item not in fold_index]
 
             df_kfolded[k]["index"] = fold_index
             df_kfolded[k]["data"]  = fold_data
+            df_kfolded[k]["y"]     = fold_y
+
+            if y_column in df_kfolded[k]["data"]:
+                print("\n\n\nERROR: Target variable in df_kfolded[k][data]")
+
         print( len(df_kfolded[k]["index"]))
 
     df_copy = df.copy()
-
     df_kfolded["all_data"] = dict()
-    df_kfolded["all_data"]["data"]  =  df_copy
     df_kfolded["all_data"]["index"] =  df.index
+    df_kfolded["all_data"]["y"]     =  df_copy[y_column]
+    del df_copy[y_column]
+    df_kfolded["all_data"]["data"]  =  df_copy
 
     return df_kfolded
 
@@ -337,11 +390,14 @@ fit_models = {"":np.nan ,
 
 #-----------------------------Upload INFO and get training sets-----------------------------------
 df = pd.read_csv('/home/coronado/Desktop/clustnet/Data/df_elglobo_sample.csv')
-df_kfolded = transform_KFold(df, 5)
+df["Product_ID"] = df.Product_ID.apply(lambda x:"producto_" + str(x))
+df["Agencia_ID"] = df.Agencia_ID.apply(lambda x:"agencia_" + str(x))
+df = df[["Product_ID", "Agencia_ID","PrecioBruto", "VentaUnidades"]]
+df = transform_categorical(df)
+
+df_kfolded = transform_KFold(df, "VentaUnidades", 2)
 
 
-Y = df.VentaUnidades
-del df["VentaUnidades"]
 models = ["", "XGBoost", "LR", "RandomForest", "LGBM"]
 M= 4     
 N= 4
@@ -350,16 +406,58 @@ neuronal_system, chromosome = build_neuronal_system(M, N, models)
 NEURONAL_SOLUTIONS = decode_neuronal_system(neuronal_system, df)
 get_intramodel_chromosomes(NEURONAL_SOLUTIONS)
 simulate_output(NEURONAL_SOLUTIONS, N, df_kfolded)
-df_output = get_models_output(NEURONAL_SOLUTIONS, df_kfolded) #runs everytime a layer is finished.
-get_exmodel_features(NEURONAL_SOLUTIONS)
+df_exmodel = get_models_output(NEURONAL_SOLUTIONS, df_kfolded) #runs everytime a layer is finished.
 
-for fold in df_kfolded.keys():
+
+
+#-------------------GENETIC ALGORITM PER MODEL ----------------------------------
+
 for n_col in NEURONAL_SOLUTIONS.keys():
     for m_row in NEURONAL_SOLUTIONS[n_col].keys():
-        print("\n\nSolving LAYER: {} - ROW: {}  \n\tNEURON: {}".format(n_col, m_row, NEURONAL_SOLUTIONS[n_col][m_row]["name"]))
+        model_name = NEURONAL_SOLUTIONS[n_col][m_row]["model_name"]
+        model = NEURONAL_SOLUTIONS[n_col][m_row]["model"]
+        neuron_name = NEURONAL_SOLUTIONS[n_col][m_row]["name"]
 
-        #Dont need output from other neurons.
-        df_base = df_kfolded[fold]["data"][[NEURONAL_SOLUTIONS[n_col][m_row]["baseline_features"]]
-        df_model = df_output[fold][[NEURONAL_SOLUTIONS[n_col][m_row]["exmodel_features"]]
-        df_train_fold = df_base.merge(df_model, right_index = True , left_index = True)
-        NEURONAL_SOLUTIONS[n_col][m_row]["train_dataset"][fold] = df_train_fold
+
+
+
+GENLONG = 15
+FIRST_ITERATION = True
+N = 50
+PC =.33   #Crossover probability
+PM =.16  #Mutation probability
+MAX_ITERATIONS = 10
+
+GENOMA_TEST = 783
+N_WORKERS = 16
+round_prediction = True
+from sklearn import linear_model
+
+MODELS_dict = {
+"LR": 
+   {
+   "function": utils_model_genetic.score_model,
+   "model_name": "LR",
+   "params":{"n_workers": 1}
+   },
+
+
+"XGBoost":
+    {
+      "function":  utils_model_genetic.score_model,
+      "model_type":"xgboost",
+      "params": {"n_workers": 16}
+
+    }
+
+}
+
+
+ERROR_TYPES = {"MAE": mean_absolute_error, "MSE": mean_squared_error, "R2": r2_score}
+POPULATION_test = utils_model_genetic.generate_model_population(df_kfolded, NEURONAL_SOLUTIONS, n_col, N)
+INDIVIDUAL = POPULATION_test[0] 
+model_name = "LR"
+error_type = "MAE"
+
+utils_model_genetic.solve_genetic_algorithm( N, PC, PM, N_WORKERS, MAX_ITERATIONS, MODELS_dict["LR"],
+                                             NEURONAL_SOLUTIONS, n_col, df,df_kfolded, df_exmodel, round_prediction)

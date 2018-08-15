@@ -1,28 +1,22 @@
 import pandas as pd 
 import numpy as np 
 import random 
-from pprint import pprint 
+from   pprint import pprint 
 import copy
 import pdb, traceback, sys
 import multiprocessing
 import random
 import time
-
+from sklearn import linear_model
+import pickle
+import threading
 
 #MODEL= "test"; len_population = 0; len_pc = 0; len_pm= 0 ; N_WORKERS =16
 
 
-def generate_genoma(GENLONG):
-    """
-    Generates a Random secuence of 1,0 of len GENLONG
-    """
-    genoma = ""
-    for i in range(GENLONG):
-        genoma += str(random.choice([1,0]))
-    return genoma
 
 
-def solve_genetic_algorithm( GENLONG, N, PC, PM, N_WORKERS, MAX_ITERATIONS, MODEL ):
+def solve_genetic_algorithm(N, PC, PM, N_WORKERS, MAX_ITERATIONS, MODEL, NEURONAL_SOLUTIONS, n_col, df, df_kfolded, df_exmodel, round_prediction ):
     """
     Solve a Genetic Algorithm with 
         len(genoma)               == GENLONG, 
@@ -37,38 +31,39 @@ def solve_genetic_algorithm( GENLONG, N, PC, PM, N_WORKERS, MAX_ITERATIONS, MODE
     still_change_count = 0 
 
     LOCK = multiprocessing.Lock()
-    manager   = multiprocessing.Manager()
-    manager2  = multiprocessing.Manager()
-    manager3  = multiprocessing.Manager()
+    manager_solutions   = multiprocessing.Manager()
+    manager_model       = multiprocessing.Manager()
+    manager_params      = multiprocessing.Manager()
 
-    SOLUTIONS = manager.dict()
-    MODEL_P = manager2.dict()
+    SOLUTIONS = manager_solutions.dict()
+    MODEL_P  = manager_model.dict()
 
     #Transform model to multiprocessing object:
     for key in MODEL.keys():
         if key == "params":
-            MODEL_P[key] = manager3.dict()
+            MODEL_P[key] = manager_params.dict()
             for key_params in MODEL["params"].keys():
                 MODEL_P["params"][key_params] = MODEL["params"][key_params]
         else:
             MODEL_P[key] = MODEL[key]
 
+    POPULATION_X = generate_model_population(df_kfolded, NEURONAL_SOLUTIONS, n_col, N)
+    POPULATION_X = parallel_solve(POPULATION_X, SOLUTIONS, LOCK, N_WORKERS, MODEL,
+                                  df_kfolded, df_exmodel, "MSE", round_prediction)
 
-    OBJECTIVE = generate_genoma(GENLONG)
-    POPULATION_X = generate_population( N, GENLONG)
-
-    POPULATION_X = parallel_solve(POPULATION_X, SOLUTIONS, LOCK, N_WORKERS, MODEL_P  )
     POPULATION_X = sort_population(POPULATION_X)
 
 
     n_iter = 0 
     while (n_iter <= MAX_ITERATIONS) & STILL_CHANGE:
 
-        POPULATION_Y = cross_mutate(POPULATION_X, N, PC, PM, GENLONG)
+        POPULATION_Y = cross_mutate(POPULATION_X, N, PC, PM)
 
         #RESELECT parallel_solve
-        POPULATION_X = parallel_solve(POPULATION_X, SOLUTIONS, LOCK, N_WORKERS, MODEL)
-        POPULATION_Y = parallel_solve(POPULATION_Y, SOLUTIONS, LOCK, N_WORKERS, MODEL)
+        POPULATION_X = parallel_solve(POPULATION_X, SOLUTIONS, LOCK, N_WORKERS, MODEL, 
+                       df_kfolded, df_exmodel, "MSE", round_prediction)
+        POPULATION_Y = parallel_solve(POPULATION_Y, SOLUTIONS, LOCK, N_WORKERS, MODEL,
+                       df_kfolded, df_exmodel, "MSE", round_prediction)
 
         POPULATION_X = sort_population(POPULATION_X)
         POPULATION_Y = sort_population(POPULATION_Y)
@@ -76,7 +71,7 @@ def solve_genetic_algorithm( GENLONG, N, PC, PM, N_WORKERS, MAX_ITERATIONS, MODE
         POPULATION_X = select_topn(POPULATION_X, POPULATION_Y, N)
         
         equal_individuals, max_score = population_summary(POPULATION_X)
-        if MODEL["model_type"] == "genetic":
+        if MODEL["model_name"] == "LR":
             print("\n\n\n\tequal_individuals: {}\t max_score: {}".format(equal_individuals, max_score))
         
         n_iter += 1
@@ -84,21 +79,29 @@ def solve_genetic_algorithm( GENLONG, N, PC, PM, N_WORKERS, MAX_ITERATIONS, MODE
             still_change_count +=1 
             #print("SAME ** {} ".format(still_change_count))
             if still_change_count >= 50:
-                print("\n\n\nGA Solved: \n\tGENLONG: {} \n\tN: {}\n\tPC:{}, \n\tPM: {}\n\tN_WORKERS: {} \n\tMAX_ITERATIONS: {}\n\tMODE: {}".format( GENLONG, N, PC, PM, N_WORKERS, MAX_ITERATIONS, MODEL ))
+                print("\n\n\nGA Solved: \n\tN: {}\n\tPC:{}, \n\tPM: {}\n\tN_WORKERS: {} \n\tMAX_ITERATIONS: {}\n\tMODE: {}".format( N, PC, PM, N_WORKERS, MAX_ITERATIONS, MODEL ))
                 STILL_CHANGE = False
 
     return POPULATION_X, SOLUTIONS
 
 
+def save_obj(obj, name ):
+    with open( name + '.pkl', 'wb') as f:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
 
-def parallel_solve(POPULATION_X, SOLUTIONS, LOCK, N_WORKERS, MODEL ):
+def load_obj(name ):
+    with open( name + '.pkl', 'rb') as f:
+        return pickle.load(f)
+
+
+def parallel_solve(POPULATION_X, SOLUTIONS, LOCK, N_WORKERS, MODEL, df_kfolded, df_exmodel, error_type, round_prediction):
     """
     Each individual in POPULATION_X is assigned to a different process to score it's own
     genoma. Each genoma is scored based on the scoring function and parameters saved individual_score
     MODEL dictionary.
 
     """
-
+    print("\n\n parallel_solve: \n\tMODEL: {} \n\t ERROR: {}".format(MODEL, error_type))
     s = 0
     POPULATION_SIZE = len(POPULATION_X)
     while s < POPULATION_SIZE-1: 
@@ -111,8 +114,8 @@ def parallel_solve(POPULATION_X, SOLUTIONS, LOCK, N_WORKERS, MODEL ):
                 break
             else:
                 if POPULATION_X[s]["GENOMA"] in SOLUTIONS.keys():
-                    if MODEL["model_type"] in ["genetic", "other"]:
-                        print("Modelo encontrado en ", MODEL["model_type"])
+                    if MODEL["model_name"] in ["LR"]:
+                        print("Modelo encontrado en ", MODEL["model_name"])
                     s+=1
                 else:
                     #<------SOLVE
@@ -120,11 +123,14 @@ def parallel_solve(POPULATION_X, SOLUTIONS, LOCK, N_WORKERS, MODEL ):
                     started_process.append(s)
                     s+=1
                     active_workers +=1
-
+        model_name = MODEL["model_name"]
         for s in started_process:
             CORES_PER_SESION = MODEL["params"]["n_workers"]
             time.sleep( random.randint(0,len(started_process)) * .05)               
-            POPULATION_X[s]["PROCESS"] = multiprocessing.Process( target= MODEL["function"] , args=(POPULATION_X[s]["GENOMA"], SOLUTIONS, CORES_PER_SESION, LOCK, MODEL, ))
+            POPULATION_X[s]["PROCESS"] = multiprocessing.Process( target= MODEL["function"] , 
+                                         args=(POPULATION_X[s], model_name, SOLUTIONS, 
+                                         CORES_PER_SESION, LOCK, MODEL, df_kfolded, df_exmodel, error_type, round_prediction, ))
+
             POPULATION_X[s]["PROCESS"].start()
 
         #print("STARTED PROCESSES: \n\t", started_process)
@@ -144,20 +150,124 @@ def parallel_solve(POPULATION_X, SOLUTIONS, LOCK, N_WORKERS, MODEL ):
 
     return POPULATION_X
 
-def generate_population(N ,GENLONG):
-    POPULATION_X = dict()
-    for i in range(N):
-        genoma = generate_genoma(GENLONG)
-        POPULATION_X[i] = {"GENOMA":genoma, "SCORE": np.nan, "PROB": np.nan}
-        #print("New individual generated: {}".format(genoma))
-    return POPULATION_X
+def generate_model_population(df_kfolded, NEURONAL_SOLUTIONS, n_col, N):
+    POPULATION = dict()
+    df = df_kfolded["all_data"]["data"]
 
-def look_solutions(genoma, SOLUTIONS):
-    try:
-        return SOLUTIONS[genoma]
-    except Exception as e:
-        print("genoma is not save in SOLUTIONS")
-        return False
+    for i in range(N):
+        POPULATION[i] = dict()
+        baseline_features = df.columns
+        exmodel_features = get_exmodel_features( NEURONAL_SOLUTIONS, n_col )
+        baseline_features_chromosome = ""
+        baseline_features_selected = list()
+
+        for feature in baseline_features:
+            isincluded = random.choice([True,False])
+            if isincluded:
+                baseline_features_selected.append(feature)
+                baseline_features_chromosome += "1"
+            else:
+                baseline_features_chromosome += "0" 
+        POPULATION[i]["baseline_features"] =  baseline_features_selected
+        POPULATION[i]["baseline_features_chromosome"] = baseline_features_chromosome
+
+        if "VentaUnidades" in baseline_features:
+            print("ERROR: Target Variable in baseline_features")
+
+
+        exmodel_features_chromosome = ""
+        exmodel_features_selected = list()
+        for feature in exmodel_features:
+            isincluded = random.choice([True,False])
+            if isincluded:
+                exmodel_features_selected.append(feature)
+                exmodel_features_chromosome += "1"
+            else:
+                exmodel_features_chromosome += "0"  
+
+        POPULATION[i]["exmodel_features"] =  exmodel_features_selected
+        POPULATION[i]["exmodel_features_chromosome"] = exmodel_features_chromosome
+        POPULATION[i]["GENOMA"] = POPULATION[i]["baseline_features_chromosome"] +""+ POPULATION[i]["exmodel_features_chromosome"]
+        POPULATION[i]["SCORE"]  = np.nan
+    return POPULATION
+
+
+
+def score_model(INDIVIDUAL, model_name, SOLUTIONS, CORES_PER_SESION, LOCK, MODEL, df_kfolded, df_exmodel, error_type, round_prediction = False):
+    """
+    Scores the model inside a neuron given a particular set of variables and calculates
+    the ERROR_TYPES[error_type] for each fold in df_kfolded.
+    """
+    genoma =  INDIVIDUAL["GENOMA"]
+    baseline_features = INDIVIDUAL["baseline_features"]
+    exmodel_features  = INDIVIDUAL["exmodel_features"]
+
+    SKLEARN_MODELS = load_obj("SKLEARN_MODELS")
+    ERROR_TYPES    = load_obj("ERROR_TYPES")
+    #print("\n\nTEST SKLEARN_MODELS: {} \n ERROR_TYPES: {} ".format(SKLEARN_MODELS, ERROR_TYPES))
+
+    model = SKLEARN_MODELS[model_name]
+    error_function = ERROR_TYPES[error_type]
+    total_error = 0
+    for test_fold in df_kfolded.keys():
+        #print("test_fold: ", test_fold)
+        if test_fold == "all_data":
+            continue
+        else:
+            X_test_baseline  = df_kfolded[test_fold]["data"].copy()
+            X_test_baseline  = X_test_baseline[baseline_features]
+            X_test_exmodel   = df_exmodel[test_fold]
+            X_test_exmodel   = X_test_exmodel[exmodel_features]
+
+
+            X_test = X_test_baseline.merge(X_test_exmodel, right_index = True, left_index =  True)
+            y_test  = df_kfolded[test_fold]["y"]
+
+            X_train_baseline = pd.DataFrame()
+            y_train = pd.DataFrame()
+            for train_fold in df_kfolded.keys():
+                #print("train_fold: ", train_fold)
+                if train_fold == "all_data" or train_fold == test_fold:
+                    continue 
+                else:
+                    if len(X_train_baseline)==0:
+                        X_train_baseline = df_kfolded[train_fold]["data"]
+                        X_train_baseline = X_train_baseline[baseline_features]
+
+                        X_train_exmodel  = df_exmodel[train_fold]
+                        X_train_exmodel  = X_train_exmodel[exmodel_features]
+
+                        X_train = X_train_baseline.merge(X_train_exmodel, right_index = True, left_index = True)
+                        y_train = df_kfolded[train_fold]["y"] 
+                    else:
+                        X_train_baseline_append = df_kfolded[train_fold]["data"]
+                        X_train_baseline_append = X_train_baseline_append[baseline_features]
+
+                        X_train_exmodel_append = df_exmodel[train_fold]
+                        X_train_exmodel_append = X_train_exmodel_append[exmodel_features]
+
+                        X_train_append = X_train_baseline_append.merge(X_train_exmodel_append, right_index = True, left_index=True)
+
+                        X_train = X_train.append(X_train_append)
+                        y_train = y_train.append(df_kfolded[train_fold]["y"]) 
+
+                    #print("\n\nTEST 2:\t\ty_train {} \n\t\tX_train_baseline: {} ".format(y_train.shape, X_train_baseline.shape))
+            
+            model = model.fit(X_train, y_train)
+            prediction   = model.predict(X_test)
+            if round_prediction:
+                prediction = np.round(prediction)
+
+            error = error_function(y_test, prediction)
+            total_error += error
+
+    score =  - total_error/len(df_kfolded.keys())-1
+    SOLUTIONS[genoma]  = score
+    print("\n\nTEST 3 {} : \n\tSCORE: {}".format(multiprocessing.current_process(), score))
+
+
+
+
 
 def score_genetics(genoma, SOLUTIONS, CORES_PER_SESION, LOCK, MODEL ):
     """
@@ -214,6 +324,20 @@ def save_solutions(genoma, new_score, SOLUTIONS):
     SOLUTIONS[genoma] = new_score
 
 
+def get_exmodel_features(NEURONAL_SOLUTIONS, eval_layer):
+    """
+    Append all exmodel output features names to call them from the df_exmodel dataset.
+    """
+    exmodel_features =list()
+    for n_col in NEURONAL_SOLUTIONS.keys():
+        for m_row in NEURONAL_SOLUTIONS[n_col].keys():
+            if int(eval_layer.replace("N_", "")) > int(n_col.replace("N_", "")):
+                #A model can use an other neuron output iff the layer of the model is lower
+                #than the neurons layer, i.e it can only used output from already trained 
+                #models.
+                exmodel_features.append(NEURONAL_SOLUTIONS[n_col][m_row]["name"])
+    return exmodel_features
+
 
 def sort_population(POPULATION_X):
     POPULATION_Y = sorted(POPULATION_X.items(), key=lambda x: x[1]["SCORE"], reverse = True)
@@ -227,8 +351,8 @@ def sort_population(POPULATION_X):
 
 def population_summary(POPULATION_X):
     suma = 0
-    min_score = 10000
-    max_score = -10000 
+    min_score =  100000000000000000000000
+    max_score = -100000000000000000000000
     lista_genomas = list()
 
     for key in POPULATION_X.keys():
@@ -237,11 +361,13 @@ def population_summary(POPULATION_X):
         suma += individual_score
         if max_score < individual_score:
             max_score = individual_score
+            best_baseline_features = POPULATION_X[key]["baseline_features_chromosome"]
+            best_exmodel_features  = POPULATION_X[key]["exmodel_features_chromosome"]
         if min_score > individual_score:
             min_score = individual_score
     promedio = suma/len(POPULATION_X.keys())
     equal_individuals = len(lista_genomas) - len(set(lista_genomas))
-    #print("\n\nTOTAL SCORE: {} MEAN SCORE: {} \n\t MAX_SCORE: {} MIN_SCORE: {} ".format(suma, promedio, max_score, min_score))
+    print("\n\nTEST 4: \n\tTOTAL SCORE: {} \n\tMEAN SCORE: {} \n\t MAX_SCORE: {} \n\tMIN_SCORE: {} \n\t BASELINE FEAT: {} \n\t EXMODEL FEAT: {}".format(suma, promedio, max_score, min_score, best_baseline_features, best_exmodel_features))
     return equal_individuals, max_score
 
 
@@ -259,12 +385,12 @@ def select_topn( POPULATION_X, POPULATION_Y, N):
     return POPULATION_NEW
 
 
-def cross_mutate( POPULATION_X, N, PC, PM, GENLONG):
+def cross_mutate( POPULATION_X, N, PC, PM):
     POPULATION_Y = copy.deepcopy(POPULATION_X)
     #pprint(POPULATION_X)
     for j in range(int(N/2)):
         pc = random.uniform(1,0)
-
+        GENLONG =  len(POPULATION_X[0]["GENOMA"])
         #CROSSOVER
         if pc < PC:
             best = POPULATION_Y[j]["GENOMA"]
