@@ -273,23 +273,38 @@ def cross_mutate( POPULATION_X, N, PC, PM, GENLONG):
             startWorst = worst
 
             genoma_crossover = random.randint(0, GENLONG)
-            best_partA  = best[:genoma_crossover]
-            worst_partA = worst[:genoma_crossover]
+            genoma_crossover_final = int(genoma_crossover + np.round(GENLONG/2))
+            if genoma_crossover_final > GENLONG:
+                # To perform a roulette  cross over we need to fill the
+                extra_genes = genoma_crossover_final - GENLONG 
+                genoma_crossover_final =  GENLONG
 
-            best_partB  =  best[genoma_crossover:]
-            worst_partB = worst[genoma_crossover:]
+            else: 
+                extra_genes = 0
 
-            new_best    = best_partA  + worst_partB
-            new_worst   = worst_partA + best_partB
+            best_partA  = best[:extra_genes]
+            worst_partA = worst[:extra_genes]
+
+            best_partB  = best[extra_genes:genoma_crossover]
+            worst_partB = worst[extra_genes:genoma_crossover]
+
+            best_partC  = best[genoma_crossover:genoma_crossover_final]
+            worst_partC = worst[genoma_crossover: genoma_crossover_final]
+
+            best_partD  = best[genoma_crossover_final:GENLONG]
+            worst_partD = worst[genoma_crossover_final: GENLONG]
+
+            #print("TEST CROSSOVER:   {} -> {} -> {} -> {} \npart A {} \npartB {} \npart C{} \npartD {}".format(extra_genes, genoma_crossover, genoma_crossover_final, GENLONG, best_partA, best_partB, best_partC, best_partD) ) 
+            new_best    = worst_partA + best_partB + worst_partC + best_partD
+            new_worst   = best_partA + worst_partB + best_partC + worst_partD
 
             endBest = new_best
             endWorst =  new_worst
 
-            POPULATION_Y[j]["GENOMA"]    = new_best
-            POPULATION_Y[N-j-1]["GENOMA"]  = new_worst
+            POPULATION_Y[j]["GENOMA"]     = new_best
+            POPULATION_Y[N-j-1]["GENOMA"] = new_worst
 
-            #print("\n\nCrossover Performed on individual {}-{}: \n\t StartBest: {} \n\t EndBest: {} \n\t StartWorst: {} \n\t EndWorst: {}".format(j,genoma_crossover, startBest, endBest, startWorst, endWorst))
-
+            #pr
     for j in range(N):
         #MUTATION
 

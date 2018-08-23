@@ -7,6 +7,8 @@ import utils_model_genetic
 import pickle
 from sklearn.metrics import mean_absolute_error, r2_score, mean_squared_error 
 import importlib 
+from sklearn import linear_model
+
 
 importlib.reload(utils_model_genetic)
 
@@ -50,7 +52,7 @@ def build_neuronal_system(M, N, models):
     return neuronal_system, chromosome
 
 
-def decode_neuronal_system(neuronal_system, df):
+def decode_neuronal_system(neuronal_system, df, SKLEARN_MODELS):
     """
     This funtion transforms the neuronal_system into a set of models that must be trained 
     in order to score the neuronal_system. NEURONAL_SOLUTIONS represent the neuronal network
@@ -72,9 +74,9 @@ def decode_neuronal_system(neuronal_system, df):
                     There is a entry for each layer in the model:
                           1 2 3
                          [][][][]  models in layer 1, con use output features from layer 0
-                        [][][][]  models in layer 2, can use output features from layer 0,1 
-                        [][][][]  ...
-                        [][][][]  models in layer 3 can use output features from layer 0,1,2
+                         [][][][]  models in layer 2, can use output features from layer 0,1 
+                         [][][][]  ...
+                         [][][][]  models in layer 3 can use output features from layer 0,1,2
                     * exmodel[layer][features]: For a particular layer, what variables will
                                   be used in the input neuron-model.
                                   **if layer of neuron < layer, non variable is included.
@@ -95,7 +97,7 @@ def decode_neuronal_system(neuronal_system, df):
             model = neuronal_system.loc[m_row, n_col]
             NEURONAL_SOLUTIONS[n_col][m_row] = dict()
             NEURONAL_SOLUTIONS[n_col][m_row]["model_name"] = model
-            NEURONAL_SOLUTIONS[n_col][m_row]["model"] = fit_models[model]
+            NEURONAL_SOLUTIONS[n_col][m_row]["model"] = SKLEARN_MODELS[model]
             NEURONAL_SOLUTIONS[n_col][m_row]["name"] = model + "_" + str(n_col) + "_" + str(m_row)
 
             #For each model we want to test the features that should be included in the model. 
@@ -363,101 +365,4 @@ def  transform_KFold(df,  y_column, K):
 
     return df_kfolded
 
-#------------------------------------MODELS----------------------------------------------
-
-fit_models = {"":np.nan , 
-              "XGBoost":XGBRegressor(max_depth=14, 
-                        learning_rate=0.15, #learning_rate=0.05
-                        n_estimators=800, 
-                        silent=True, 
-                        objective='reg:linear', 
-                        nthread=32, 
-                        gamma=0,
-                        min_child_weight=1, 
-                        max_delta_step=0, 
-                        subsample=0.85, 
-                        colsample_bytree=0.7, 
-                        colsample_bylevel=1, 
-                        reg_alpha=0, 
-                        reg_lambda=1, 
-                        scale_pos_weight=1, 
-                        seed=1440, 
-                        missing=None) , 
-              "LR":1,
-              "RandomForest":2,
-              "LGBM": 3}
-
-
-#-----------------------------Upload INFO and get training sets-----------------------------------
-df = pd.read_csv('/home/coronado/Desktop/clustnet/Data/df_elglobo_sample.csv')
-df["Product_ID"] = df.Product_ID.apply(lambda x:"producto_" + str(x))
-df["Agencia_ID"] = df.Agencia_ID.apply(lambda x:"agencia_" + str(x))
-df = df[["Product_ID", "Agencia_ID","PrecioBruto", "VentaUnidades"]]
-df = transform_categorical(df)
-
-df_kfolded = transform_KFold(df, "VentaUnidades", 2)
-
-
-models = ["", "XGBoost", "LR", "RandomForest", "LGBM"]
-M= 4     
-N= 4
-
-neuronal_system, chromosome = build_neuronal_system(M, N, models)
-NEURONAL_SOLUTIONS = decode_neuronal_system(neuronal_system, df)
-get_intramodel_chromosomes(NEURONAL_SOLUTIONS)
-simulate_output(NEURONAL_SOLUTIONS, N, df_kfolded)
-df_exmodel = get_models_output(NEURONAL_SOLUTIONS, df_kfolded) #runs everytime a layer is finished.
-
-
-
-#-------------------GENETIC ALGORITM PER MODEL ----------------------------------
-
-for n_col in NEURONAL_SOLUTIONS.keys():
-    for m_row in NEURONAL_SOLUTIONS[n_col].keys():
-        model_name = NEURONAL_SOLUTIONS[n_col][m_row]["model_name"]
-        model = NEURONAL_SOLUTIONS[n_col][m_row]["model"]
-        neuron_name = NEURONAL_SOLUTIONS[n_col][m_row]["name"]
-
-
-
-
-GENLONG = 15
-FIRST_ITERATION = True
-N = 50
-PC =.33   #Crossover probability
-PM =.16  #Mutation probability
-MAX_ITERATIONS = 10
-
-GENOMA_TEST = 783
-N_WORKERS = 16
-round_prediction = True
-from sklearn import linear_model
-
-MODELS_dict = {
-"LR": 
-   {
-   "function": utils_model_genetic.score_model,
-   "model_name": "LR",
-   "params":{"n_workers": 1}
-   },
-
-
-"XGBoost":
-    {
-      "function":  utils_model_genetic.score_model,
-      "model_type":"xgboost",
-      "params": {"n_workers": 16}
-
-    }
-
-}
-
-
-ERROR_TYPES = {"MAE": mean_absolute_error, "MSE": mean_squared_error, "R2": r2_score}
-POPULATION_test = utils_model_genetic.generate_model_population(df_kfolded, NEURONAL_SOLUTIONS, n_col, N)
-INDIVIDUAL = POPULATION_test[0] 
-model_name = "LR"
-error_type = "MAE"
-
-utils_model_genetic.solve_genetic_algorithm( N, PC, PM, N_WORKERS, MAX_ITERATIONS, MODELS_dict["LR"],
-                                             NEURONAL_SOLUTIONS, n_col, df,df_kfolded, df_exmodel, round_prediction)
+    #------------------------------------MODELS----------------------------------------------

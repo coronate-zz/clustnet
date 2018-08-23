@@ -36,7 +36,7 @@ def solve_genetic_algorithm(N, PC, PM, N_WORKERS, MAX_ITERATIONS, MODEL, NEURONA
     manager_params      = multiprocessing.Manager()
 
     SOLUTIONS = manager_solutions.dict()
-    MODEL_P  = manager_model.dict()
+    MODEL_P   = manager_model.dict()
 
     #Transform model to multiprocessing object:
     for key in MODEL.keys():
@@ -48,7 +48,7 @@ def solve_genetic_algorithm(N, PC, PM, N_WORKERS, MAX_ITERATIONS, MODEL, NEURONA
             MODEL_P[key] = MODEL[key]
 
     POPULATION_X = generate_model_population(df_kfolded, NEURONAL_SOLUTIONS, n_col, N)
-    POPULATION_X = parallel_solve(POPULATION_X, SOLUTIONS, LOCK, N_WORKERS, MODEL,
+    POPULATION_X = parallel_solve(POPULATION_X, SOLUTIONS, LOCK, N_WORKERS, MODEL_P,
                                   df_kfolded, df_exmodel, "MSE", round_prediction)
 
     POPULATION_X = sort_population(POPULATION_X)
@@ -198,15 +198,13 @@ def score_model(INDIVIDUAL, model_name, SOLUTIONS, CORES_PER_SESION, LOCK, MODEL
     Scores the model inside a neuron given a particular set of variables and calculates
     the ERROR_TYPES[error_type] for each fold in df_kfolded.
     """
+    ERROR_TYPES  = load_obj("ERROR_TYPES")
     genoma =  INDIVIDUAL["GENOMA"]
     baseline_features = INDIVIDUAL["baseline_features"]
     exmodel_features  = INDIVIDUAL["exmodel_features"]
-
-    SKLEARN_MODELS = load_obj("SKLEARN_MODELS")
-    ERROR_TYPES    = load_obj("ERROR_TYPES")
     #print("\n\nTEST SKLEARN_MODELS: {} \n ERROR_TYPES: {} ".format(SKLEARN_MODELS, ERROR_TYPES))
 
-    model = SKLEARN_MODELS[model_name]
+    model = MODEL["model_class"]
     error_function = ERROR_TYPES[error_type]
     total_error = 0
     for test_fold in df_kfolded.keys():
@@ -253,7 +251,7 @@ def score_model(INDIVIDUAL, model_name, SOLUTIONS, CORES_PER_SESION, LOCK, MODEL
 
                     #print("\n\nTEST 2:\t\ty_train {} \n\t\tX_train_baseline: {} ".format(y_train.shape, X_train_baseline.shape))
             
-            model = model.fit(X_train, y_train)
+            model.fit(X_train, y_train, X_test, y_test)
             prediction   = model.predict(X_test)
             if round_prediction:
                 prediction = np.round(prediction)
@@ -399,22 +397,38 @@ def cross_mutate( POPULATION_X, N, PC, PM):
             startWorst = worst
 
             genoma_crossover = random.randint(0, GENLONG)
-            best_partA  = best[:genoma_crossover]
-            worst_partA = worst[:genoma_crossover]
+            genoma_crossover_final = int(genoma_crossover + np.round(GENLONG/2))
+            if genoma_crossover_final > GENLONG:
+                # To perform a roulette  cross over we need to fill the
+                extra_genes = genoma_crossover_final - GENLONG 
+                genoma_crossover_final =  GENLONG
 
-            best_partB  =  best[genoma_crossover:]
-            worst_partB = worst[genoma_crossover:]
+            else: 
+                extra_genes = 0
 
-            new_best    = best_partA  + worst_partB
-            new_worst   = worst_partA + best_partB
+            best_partA  = best[:extra_genes]
+            worst_partA = worst[:extra_genes]
+
+            best_partB  = best[extra_genes:genoma_crossover]
+            worst_partB = worst[extra_genes:genoma_crossover]
+
+            best_partC  = best[genoma_crossover:genoma_crossover_final]
+            worst_partC = worst[genoma_crossover: genoma_crossover_final]
+
+            best_partD  = best[genoma_crossover_final:GENLONG]
+            worst_partD = worst[genoma_crossover_final: GENLONG]
+
+            #print("TEST CROSSOVER:   {} -> {} -> {} -> {} \npart A {} \npartB {} \npart C{} \npartD {}".format(extra_genes, genoma_crossover, genoma_crossover_final, GENLONG, best_partA, best_partB, best_partC, best_partD) ) 
+            new_best    = worst_partA + best_partB + worst_partC + best_partD
+            new_worst   = best_partA + worst_partB + best_partC + worst_partD
 
             endBest = new_best
             endWorst =  new_worst
 
-            POPULATION_Y[j]["GENOMA"]    = new_best
-            POPULATION_Y[N-j-1]["GENOMA"]  = new_worst
+            POPULATION_Y[j]["GENOMA"]     = new_best
+            POPULATION_Y[N-j-1]["GENOMA"] = new_worst
 
-            #print("\n\nCrossover Performed on individual {}-{}: \n\t StartBest: {} \n\t EndBest: {} \n\t StartWorst: {} \n\t EndWorst: {}".format(j,genoma_crossover, startBest, endBest, startWorst, endWorst))
+            #print("\n\nCrossover Performed on individual {}-{}: \n\t StartBest: {} \n\t NewBest: {} \n\t StartWorst: {} \n\t NewWorst: {}".format(j,genoma_crossover, startBest, endBest, startWorst, endWorst))
 
     for j in range(N):
         #MUTATION

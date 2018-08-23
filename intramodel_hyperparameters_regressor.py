@@ -1,4 +1,3 @@
-
 import pandas as pd 
 import numpy as np 
 import multiprocessing
@@ -7,25 +6,44 @@ from xgboost import plot_importance
 import utils_model_genetic 
 import pickle
 from sklearn.metrics import mean_absolute_error, r2_score, mean_squared_error 
+import utils_exomodel 
 import lightgbm as lgb 
-
+from sklearn.model_selection  import train_test_split
 from sklearn.ensemble import RandomForestRegressor, AdaBoostRegressor, \
                              BaggingRegressor, ExtraTreesRegressor, \
                              GradientBoostingRegressor
+import utils_model_genetic
 
-from sklearn.linear_model import LinearRegression, BayesianRidge, ElasticNet, ARDRegression
-
+from sklearn.linear_model import LinearRegression, BayesianRidge,ElasticNet, ARDRegression
 from sklearn.naive_bayes import MultinomialNB, GaussianNB
+import importlib 
+importlib.reload(utils_model_genetic)
+importlib.reload(utils_exomodel)
 
+N = 1
+df = pd.read_csv('/home/coronado/Desktop/clustnet/Data/df_elglobo_sample.csv')
+df["Product_ID"] = df.Product_ID.apply(lambda x:"producto_" + str(x))
+df["Agencia_ID"] = df.Agencia_ID.apply(lambda x:"agencia_" + str(x))
+df = df[["Product_ID", "Agencia_ID","PrecioBruto", "VentaUnidades"]]
+df = utils_exomodel.transform_categorical(df)
+y  = df["VentaUnidades"]
+del df["VentaUnidades"]
+X = df
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33, random_state=42)
+
+
+def save_obj(obj, name ):
+    with open( name + '.pkl', 'wb') as f:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
 
 class LGBM:
     """docstring for ClassName"""
     def __init__(self, lgb, N):
         self.model = lgb
-        sel.cores_number = int(np.ceil(multiprocessing.cpu_count()/N))
-        pritn("Lightgbm Cores: ")
+        self.cores_number = int(np.ceil(multiprocessing.cpu_count()/N))
+        print("Lightgbm Cores: ")
 
-    def fit(self, X_train, y_train, X_test, y_test, error_type):
+    def fit(self, X_train, y_train, X_test, y_test):
         train_data= self.model.Dataset(X_train, label=y_train)
         lgb_eval  = self.model.Dataset(X_test, y_test, reference=train_data)
 
@@ -51,9 +69,8 @@ class LGBM:
          prediction=self.model.predict(X_test)
          return(prediction)
 
-lgbm = LGBM(lgb)
-lgbm.fit(X_train, y_train, X_test, y_test, "MAE")
-prediction = lgbm.predict(X_test)
+
+
 
 
 
@@ -70,7 +87,7 @@ class ADABOOST():
 
         print("AdaBoostRegressor Cores: ", np.nan)
 
-    def fit(self, X_train, y_train, X_test, y_test, error_type):
+    def fit(self, X_train, y_train, X_test, y_test, error_type = "MAE"):
 
         error_dict = {"MSE":"rmse", "R2":{"l1","l2"}, "MAE":"mae","LOGLOSS": "multi_logloss" }
         error_metric = error_dict[error_type]
@@ -79,14 +96,6 @@ class ADABOOST():
     def predict(self, X_test):
          prediction=self.model.predict(X_test)
          return(prediction)
-
-N =1
-ada = ADABOOST(AdaBoostRegressor, N)
-ada.fit(X_train, y_train, X_test, y_test, "MSE")
-prediction = ada.predict(X_test)
-print(np.mean(y_test - prediction))
-
-
 
 
 
@@ -116,7 +125,7 @@ class EXTRATREE():
 
         print("ExtraTreesRegressor Cores: ", self.cores_number)
 
-    def fit(self, X_train, y_train, X_test, y_test, error_type):
+    def fit(self, X_train, y_train, X_test, y_test, error_type = "MAE"):
 
         error_dict = {"MSE":"mse", "MAE":"mae" }
         error_metric = error_dict[error_type]
@@ -127,12 +136,6 @@ class EXTRATREE():
          prediction=self.model.predict(X_test)
          return(prediction)
 
-N =1
-etr = EXTRATREE(ExtraTreesRegressor, N)
-etr.fit(X_train, y_train, X_test, y_test, "MSE")
-prediction = etr.predict(X_test)
-print(np.mean(y_test - prediction))
-
 
 
 class XGBOOST:
@@ -142,7 +145,7 @@ class XGBOOST:
         self.cores_number = int(np.ceil(multiprocessing.cpu_count()/N))
         print("XGBoostRegressor Cores: ", self.cores_number )
 
-    def fit(self, X_train, y_train, X_test, y_test, error_type):
+    def fit(self, X_train, y_train, X_test, y_test, error_type = "MAE"):
 
         error_dict = {"MSE":"rmse", "R2":{"l1","l2"}, "MAE":"mae","LOGLOSS": "multi_logloss" }
         error_metric = error_dict[error_type]
@@ -174,11 +177,6 @@ class XGBOOST:
          prediction=self.model.predict(X_test)
          return(prediction)
 
-N =1
-xgboost = XGBOOST(XGBRegressor, N)
-xgboost.fit(X_train, y_train, X_test, y_test, "MSE")
-prediction = xgboost.predict(X_test)
-
 
 
 
@@ -202,7 +200,7 @@ class BAGGING():
 
         print("Bagging Cores: ", self.cores_number)
 
-    def fit(self, X_train, y_train, X_test, y_test, error_type):
+    def fit(self, X_train, y_train, X_test, y_test, error_type = "MAE"):
 
         error_dict = {"MSE":"rmse", "R2":{"l1","l2"}, "MAE":"mae","LOGLOSS": "multi_logloss" }
         error_metric = error_dict[error_type]
@@ -212,11 +210,7 @@ class BAGGING():
          prediction=self.model.predict(X_test)
          return(prediction)
 
-N =1
-br = BAGGING(BaggingRegressor, N)
-br.fit(X_train, y_train, X_test, y_test, "MSE")
-prediction = br.predict(X_test)
-print(np.mean(y_test - prediction))
+
 
 class LINEARREGRESSION:
     """docstring for ClassName"""
@@ -225,7 +219,7 @@ class LINEARREGRESSION:
         self.model = LinearRegression(n_jobs = self.cores_number, normalize = False)
         print("LinearRegression Cores: ", self.cores_number )
 
-    def fit(self, X_train, y_train, X_test, y_test, error_type):
+    def fit(self, X_train, y_train, X_test, y_test, error_type = "MAE"):
 
         error_dict = {"MSE":"rmse", "R2":{"l1","l2"}, "MAE":"mae","LOGLOSS": "multi_logloss" }
         error_metric = error_dict[error_type]
@@ -236,10 +230,7 @@ class LINEARREGRESSION:
          prediction=self.model.predict(X_test)
          return(prediction)
 
-N =1
-lr = LINEARREGRESSION(LinearRegression, N)
-lr.fit(X_train, y_train, X_test, y_test, "MSE")
-prediction = lr.predict(X_test)
+
 
 
 
@@ -264,7 +255,7 @@ class ARDR():
 
         print("ARDRegression Cores: ", np.nan)
 
-    def fit(self, X_train, y_train, X_test, y_test, error_type):
+    def fit(self, X_train, y_train, X_test, y_test, error_type = "MAE"):
         try:
             self.selected_columns = np.random.choice(X_train.columns, 100, replace = False)
             X_train = X_train[self.selected_columns]
@@ -279,12 +270,6 @@ class ARDR():
          prediction=self.model.predict(X_test[self.selected_columns])
          return(prediction)
 
-
-N =1
-ardr = ARDR(ARDRegression, N)
-ardr.fit(X_train, y_train, X_test, y_test, "MSE")
-prediction = ardr.predict(X_test)
-print(np.mean(y_test - prediction))
 
 
 
@@ -309,7 +294,7 @@ class BAYESIANRIDGE():
 
         print("BayesianRidge Cores: ", np.nan)
 
-    def fit(self, X_train, y_train, X_test, y_test, error_type):
+    def fit(self, X_train, y_train, X_test, y_test, error_type = "MAE"):
 
         error_dict = {"MSE":"rmse", "R2":{"l1","l2"}, "MAE":"mae","LOGLOSS": "multi_logloss" }
         error_metric = error_dict[error_type]
@@ -319,12 +304,6 @@ class BAYESIANRIDGE():
          prediction=self.model.predict(X_test)
          return(prediction)
 
-
-N =1
-bayesrid = BAYESIANRIDGE(BayesianRidge, N)
-bayesrid.fit(X_train, y_train, X_test, y_test, "MSE")
-prediction = bayesrid.predict(X_test)
-print(np.mean(y_test - prediction))
 
 
 
@@ -349,7 +328,7 @@ class ELASTIC():
 
         print("ElasticNet Cores: ", np.nan)
 
-    def fit(self, X_train, y_train, X_test, y_test, error_type):
+    def fit(self, X_train, y_train, X_test, y_test, error_type = "MAE"):
 
         error_dict = {"MSE":"rmse", "R2":{"l1","l2"}, "MAE":"mae","LOGLOSS": "multi_logloss" }
         error_metric = error_dict[error_type]
@@ -360,11 +339,6 @@ class ELASTIC():
          return(prediction)
 
 
-N =1
-elastic = ELASTIC(ElasticNet, N)
-elastic.fit(X_train, y_train, X_test, y_test, "MSE")
-prediction = elastic.predict(X_test)
-print(np.mean(y_test - prediction))
 
 
 
@@ -372,28 +346,28 @@ class RANDOMFOREST():
     """docstring for ClassName"""
     def __init__(self, RandomForestRegressor, N):
         self.cores_number = int(np.ceil(multiprocessing.cpu_count()/N))
+
         self.model = RandomForestRegressor(
-                        bootstrap=True, 
-                        class_weight=None, 
-                        criterion='gini',
-                        max_depth= None, 
-                        max_features='auto',
-                        max_leaf_nodes=None,
-                        min_impurity_decrease=0.0, 
-                        min_impurity_split=None,
-                        min_samples_leaf=1, 
-                        min_samples_split=2,
-                        min_weight_fraction_leaf=0.0, 
-                        n_estimators=200, 
-                        n_jobs=1,
-                        oob_score=False, 
-                        random_state=None, 
-                        verbose=True,
-                        warm_start=False)
+                       bootstrap=True, criterion='mse',
+                       max_depth=None,
+                       max_features='auto',
+                       max_leaf_nodes=None,
+                       min_impurity_decrease=0.0,
+                       min_impurity_split=None,
+                       min_samples_leaf=1,
+                       min_samples_split=2,
+                       min_weight_fraction_leaf=0.0,
+                       n_estimators=200, 
+                       n_jobs=1,
+                       oob_score=False, 
+                       random_state=None,
+                       verbose= True,
+                       warm_start=False)
+
 
         print("RandomForestRegressor Cores: ", self.cores_number )
 
-    def fit(self, X_train, y_train, X_test, y_test, error_type):
+    def fit(self, X_train, y_train, X_test, y_test, error_type = "MAE"):
 
         error_dict = {"MSE":"rmse", "R2":{"l1","l2"}, "MAE":"mae","LOGLOSS": "multi_logloss" }
         error_metric = error_dict[error_type]
@@ -404,10 +378,7 @@ class RANDOMFOREST():
          prediction=self.model.predict(X_test)
          return(prediction)
 
-N =1
-lr = RANDOMFOREST(RandomForestRegressor, N)
-lr.fit(X_train, y_train, X_test, y_test, "MSE")
-prediction = lr.predict(X_test)
+
 
 
 
@@ -437,7 +408,7 @@ class GRADIENTBOOSTING():
 
         print("GradientBoostingRegressor Cores: ", self.cores_number)
 
-    def fit(self, X_train, y_train, X_test, y_test, error_type):
+    def fit(self, X_train, y_train, X_test, y_test, error_type = "MAE"):
 
         error_dict = {"MSE":"mse", "MAE":"mae" }
         error_metric = error_dict[error_type]
@@ -447,6 +418,8 @@ class GRADIENTBOOSTING():
     def predict(self, X_test):
          prediction=self.model.predict(X_test)
          return(prediction)
+
+
 
 
 
@@ -462,7 +435,7 @@ class MULTINOMIALNB():
 
         print("MultinomialNB Cores: ", np.nan)
 
-    def fit(self, X_train, y_train, X_test, y_test, error_type):
+    def fit(self, X_train, y_train, X_test, y_test, error_type = "MAE"):
         error_dict = {"MSE":"rmse", "R2":{"l1","l2"}, "MAE":"mae","LOGLOSS": "multi_logloss" }
         error_metric = error_dict[error_type]
         self.model.fit(X_train, y_train )
@@ -471,12 +444,6 @@ class MULTINOMIALNB():
          prediction=self.model.predict(X_test)
          return(prediction)
 
-
-N =1
-mnb = MULTINOMIALNB(MultinomialNB, N)
-mnb.fit(X_train, y_train, X_test, y_test, "MSE")
-prediction = mnb.predict(X_test)
-print(np.mean(y_test - prediction))
 
 
 
@@ -488,7 +455,7 @@ class GAUSSIANNB():
 
         print("GaussianNB Cores: ", np.nan)
 
-    def fit(self, X_train, y_train, X_test, y_test, error_type):
+    def fit(self, X_train, y_train, X_test, y_test, error_type = "MAE"):
         error_dict = {"MSE":"rmse", "R2":{"l1","l2"}, "MAE":"mae","LOGLOSS": "multi_logloss" }
         error_metric = error_dict[error_type]
         self.model.fit(X_train, y_train )
@@ -496,6 +463,97 @@ class GAUSSIANNB():
     def predict(self, X_test):
          prediction=self.model.predict(X_test)
          return(prediction)
+
+
+def load_models():
+    SKLEARN_MODELS ={
+                      "lgbm"             : {"function": utils_model_genetic.score_model, 
+                                            "model_class":LGBM(lgb, N), 
+                                            "model_name": "lgbm", 
+                                            "params" : {"n_workers" :16}},
+
+                      "adaboost"         : { "function": utils_model_genetic.score_model, 
+                                             "model_class":ADABOOST(AdaBoostRegressor, N), 
+                                             "model_name": "adaboost", 
+                                             "params" : {"n_workers" : 16}},
+
+                      "extratrees"       : { "function": utils_model_genetic.score_model, 
+                                             "model_class":EXTRATREE(ExtraTreesRegressor, N), 
+                                             "model_name": "extratrees", 
+                                             "params" : {"n_workers" : 16}},
+
+                      "xgboost"          : { "function": utils_model_genetic.score_model, 
+                                              "model_class":XGBOOST(XGBRegressor, N), 
+                                             "model_name": "xgboost", 
+                                             "params" : {"n_workers" : 16}},
+
+                      "bagging"          : { "function": utils_model_genetic.score_model, 
+                                              "model_class":BAGGING(BaggingRegressor, N), 
+                                              "model_name": "bagging", 
+                                              "params" : {"n_workers": 16}},
+
+                      #"ardr"            : { "function": utils_model_genetic.score_model, 
+                      #                     "model_class":ARDR(ARDRegression, N), 
+                      #                     "model_name": "", 
+                      #                     "params" : {"n_workers" = 16}
+
+                      "bayesridge"       : { "function": utils_model_genetic.score_model, 
+                                            "model_class":BAYESIANRIDGE(BayesianRidge, N), 
+                                              "model_name": "bayesridge", 
+                                              "params" : {"n_workers":  16}},
+
+                      "elasticnet"       : { "function": utils_model_genetic.score_model, 
+                                            "model_class":ELASTIC(ElasticNet, N), 
+                                             "model_name": "elasticnet", 
+                                             "params" : {"n_workers" : 16}},
+
+                      "randomforest"     : { "function": utils_model_genetic.score_model, 
+                                             "model_class":RANDOMFOREST(RandomForestRegressor, N), 
+                                             "model_name": "randomforest", 
+                                             "params" : {"n_workers": 16}},
+
+                      "gradientboosting" : { "function": utils_model_genetic.score_model, 
+                                             "model_class":GRADIENTBOOSTING(GradientBoostingRegressor, N), 
+                                             "model_name": "gradientboosting", 
+                                             "params" : {"n_workers":16}},
+
+                      "multinomial"      : { "function": utils_model_genetic.score_model, 
+                                             "model_class":MULTINOMIALNB(MultinomialNB, N), 
+                                             "model_name": "multinomial", 
+                                             "params" : {"n_workers" :16}},
+
+                      "gaussiannb"       : { "function": utils_model_genetic.score_model, 
+                                             "model_class":GAUSSIANNB(GaussianNB, N), 
+                                             "model_name": "gaussiannb", 
+                                             "params" : {"n_workers": 16}},
+
+                      "linear"           : { "function": utils_model_genetic.score_model, 
+                                             "model_class":LINEARREGRESSION(LinearRegression, N),
+                                             "model_name": "linear", 
+                                             "params" : {"n_workers": 16}}
+        }
+    return SKLEARN_MODELS
+
+
+
+
+
+#save_obj(SKLEARN_MODELS, "SKLEARN_MODELS")
+
+ERROR_TYPES = {'MAE': mean_absolute_error,
+ 'MSE': mean_squared_error,
+ 'R2': r2_score}
+
+save_obj(ERROR_TYPES, "ERROR_TYPES")
+
+"""
+---------------------------------------------TEST--------------------------------------------------
+
+N =1
+mnb = MULTINOMIALNB(MultinomialNB, N)
+mnb.fit(X_train, y_train, X_test, y_test, "MSE")
+prediction = mnb.predict(X_test)
+print(np.mean(y_test - prediction))
 
 
 N =1
@@ -506,23 +564,67 @@ print(np.mean(y_test - prediction))
 
 
 
-def save_obj(obj, name ):
-    with open( name + '.pkl', 'wb') as f:
-        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+lgbm = LGBM(lgb, N)
+lgbm.fit(X_train, y_train, X_test, y_test, "MAE")
+prediction = lgbm.predict(X_test)
+
+N =1
+ada = ADABOOST(AdaBoostRegressor, N)
+ada.fit(X_train, y_train, X_test, y_test, "MSE")
+prediction = ada.predict(X_test)
+print(np.mean(y_test - prediction))
+
+N =1
+
+etr = EXTRATREE(ExtraTreesRegressor, N)
+etr.fit(X_train, y_train, X_test, y_test, "MSE")
+prediction = etr.predict(X_test)
+print(np.mean(y_test - prediction))
 
 
-SKLEARN_MODELS ={'LR': LINEAR(LinearRegression),
+N =1
+xgboost = XGBOOST(XGBRegressor, N)
+xgboost.fit(X_train, y_train, X_test, y_test, "MSE")
+prediction = xgboost.predict(X_test)
 
-                 'XGBoost': XGBOOST(XGBRegressor)
+N =1
+br = BAGGING(BaggingRegressor, N)
+br.fit(X_train, y_train, X_test, y_test, "MSE")
+prediction = br.predict(X_test)
+print(np.mean(y_test - prediction))
 
-                 "LBGM": LGBM(lgb)
-                }
+N =1
+lr = LINEARREGRESSION(LinearRegression, N)
+lr.fit(X_train, y_train, X_test, y_test, "MSE")
+prediction = lr.predict(X_test)
+#N =1
 
-save_obj(SKLEARN_MODELS, "SKLEARN_MODELS")
+#ardr = ARDR(ARDRegression, N)
+#ardr.fit(X_train, y_train, X_test, y_test, "MSE")
+#prediction = ardr.predict(X_test)
+#print(np.mean(y_test - prediction))
 
-ERROR_TYPES = {'MAE': mean_absolute_error,
- 'MSE': mean_squared_error,
- 'R2': r2_score}
+N =1
+bayesrid = BAYESIANRIDGE(BayesianRidge, N)
+bayesrid.fit(X_train, y_train, X_test, y_test, "MSE")
+prediction = bayesrid.predict(X_test)
+print(np.mean(y_test - prediction))
 
-save_obj(ERROR_TYPES, "ERROR_TYPES")
+N =1
+elastic = ELASTIC(ElasticNet, N)
+elastic.fit(X_train, y_train, X_test, y_test, "MSE")
+prediction = elastic.predict(X_test)
+print(np.mean(y_test - prediction))
 
+N =1
+randomforest = RANDOMFOREST(RandomForestRegressor, N)
+randomforest.fit(X_train, y_train, X_test, y_test, "MSE")
+prediction = lr.predict(X_test)
+
+N =1
+mnb = GRADIENTBOOSTING(GradientBoostingRegressor, N)
+mnb.fit(X_train, y_train, X_test, y_test, "MSE")
+prediction = mnb.predict(X_test)
+print(np.mean(y_test - prediction))
+
+"""

@@ -7,6 +7,7 @@ import pdb, traceback, sys
 import multiprocessing
 import random
 import time
+ import pickle
 
 from utils_genetic import generate_genoma, parallel_solve, generate_population, look_solutions, \
                           score_genetics, save_solutions, sort_population, population_summary, select_topn, \
