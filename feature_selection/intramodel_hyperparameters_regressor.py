@@ -20,16 +20,8 @@ import importlib
 importlib.reload(utils_model_genetic)
 importlib.reload(utils_exomodel)
 
-N = 1
-df = pd.read_csv('/home/coronado/Desktop/clustnet/Data/df_elglobo_sample.csv')
-df["Product_ID"] = df.Product_ID.apply(lambda x:"producto_" + str(x))
-df["Agencia_ID"] = df.Agencia_ID.apply(lambda x:"agencia_" + str(x))
-df = df[["Product_ID", "Agencia_ID","PrecioBruto", "VentaUnidades"]]
-df = utils_exomodel.transform_categorical(df)
-y  = df["VentaUnidades"]
-del df["VentaUnidades"]
-X = df
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33, random_state=42)
+
+N =1
 
 
 def save_obj(obj, name ):
@@ -169,7 +161,7 @@ class XGBOOST:
                         missing=None)
 
         self.model.fit(X_train, y_train, eval_metric=error_metric, 
-            verbose = True, eval_set = [(X_train, y_train), (X_test, y_test)],
+            verbose = False, eval_set = [(X_train, y_train), (X_test, y_test)], #<- Verbose
             early_stopping_rounds=20)
 
 
@@ -546,85 +538,100 @@ ERROR_TYPES = {'MAE': mean_absolute_error,
 
 save_obj(ERROR_TYPES, "ERROR_TYPES")
 
-"""
----------------------------------------------TEST--------------------------------------------------
-
-N =1
-mnb = MULTINOMIALNB(MultinomialNB, N)
-mnb.fit(X_train, y_train, X_test, y_test, "MSE")
-prediction = mnb.predict(X_test)
-print(np.mean(y_test - prediction))
-
-
-N =1
-gnb = GAUSSIANNB(GaussianNB, N)
-gnb.fit(X_train, y_train, X_test, y_test, "MSE")
-prediction = gnb.predict(X_test)
-print(np.mean(y_test - prediction))
 
 
 
-lgbm = LGBM(lgb, N)
-lgbm.fit(X_train, y_train, X_test, y_test, "MAE")
-prediction = lgbm.predict(X_test)
+def main():
 
-N =1
-ada = ADABOOST(AdaBoostRegressor, N)
-ada.fit(X_train, y_train, X_test, y_test, "MSE")
-prediction = ada.predict(X_test)
-print(np.mean(y_test - prediction))
-
-N =1
-
-etr = EXTRATREE(ExtraTreesRegressor, N)
-etr.fit(X_train, y_train, X_test, y_test, "MSE")
-prediction = etr.predict(X_test)
-print(np.mean(y_test - prediction))
+    N = 1
+    df = pd.read_csv('/home/coronado/Desktop/clustnet/Data/df_elglobo_sample.csv')
+    df["Product_ID"] = df.Product_ID.apply(lambda x:"producto_" + str(x))
+    df["Agencia_ID"] = df.Agencia_ID.apply(lambda x:"agencia_" + str(x))
+    df = df[["Product_ID", "Agencia_ID","PrecioBruto", "VentaUnidades"]]
+    df = utils_exomodel.transform_categorical(df)
+    y  = df["VentaUnidades"]
+    del df["VentaUnidades"]
+    X = df
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33, random_state=42)
 
 
-N =1
-xgboost = XGBOOST(XGBRegressor, N)
-xgboost.fit(X_train, y_train, X_test, y_test, "MSE")
-prediction = xgboost.predict(X_test)
+    N =1
+    mnb = MULTINOMIALNB(MultinomialNB, N)
+    mnb.fit(X_train, y_train, X_test, y_test, "MSE")
+    prediction = mnb.predict(X_test)
+    print(np.mean(y_test - prediction))
 
-N =1
-br = BAGGING(BaggingRegressor, N)
-br.fit(X_train, y_train, X_test, y_test, "MSE")
-prediction = br.predict(X_test)
-print(np.mean(y_test - prediction))
 
-N =1
-lr = LINEARREGRESSION(LinearRegression, N)
-lr.fit(X_train, y_train, X_test, y_test, "MSE")
-prediction = lr.predict(X_test)
-#N =1
+    N =1
+    gnb = GAUSSIANNB(GaussianNB, N)
+    gnb.fit(X_train, y_train, X_test, y_test, "MSE")
+    prediction = gnb.predict(X_test)
+    print(np.mean(y_test - prediction))
 
-#ardr = ARDR(ARDRegression, N)
-#ardr.fit(X_train, y_train, X_test, y_test, "MSE")
-#prediction = ardr.predict(X_test)
-#print(np.mean(y_test - prediction))
 
-N =1
-bayesrid = BAYESIANRIDGE(BayesianRidge, N)
-bayesrid.fit(X_train, y_train, X_test, y_test, "MSE")
-prediction = bayesrid.predict(X_test)
-print(np.mean(y_test - prediction))
 
-N =1
-elastic = ELASTIC(ElasticNet, N)
-elastic.fit(X_train, y_train, X_test, y_test, "MSE")
-prediction = elastic.predict(X_test)
-print(np.mean(y_test - prediction))
+    lgbm = LGBM(lgb, N)
+    lgbm.fit(X_train, y_train, X_test, y_test, "MAE")
+    prediction = lgbm.predict(X_test)
 
-N =1
-randomforest = RANDOMFOREST(RandomForestRegressor, N)
-randomforest.fit(X_train, y_train, X_test, y_test, "MSE")
-prediction = lr.predict(X_test)
+    N =1
+    ada = ADABOOST(AdaBoostRegressor, N)
+    ada.fit(X_train, y_train, X_test, y_test, "MSE")
+    prediction = ada.predict(X_test)
+    print(np.mean(y_test - prediction))
 
-N =1
-mnb = GRADIENTBOOSTING(GradientBoostingRegressor, N)
-mnb.fit(X_train, y_train, X_test, y_test, "MSE")
-prediction = mnb.predict(X_test)
-print(np.mean(y_test - prediction))
+    N =1
 
-"""
+    etr = EXTRATREE(ExtraTreesRegressor, N)
+    etr.fit(X_train, y_train, X_test, y_test, "MSE")
+    prediction = etr.predict(X_test)
+    print(np.mean(y_test - prediction))
+
+
+    N =1
+    xgboost = XGBOOST(XGBRegressor, N)
+    xgboost.fit(X_train, y_train, X_test, y_test, "MSE")
+    prediction = xgboost.predict(X_test)
+
+    N =1
+    br = BAGGING(BaggingRegressor, N)
+    br.fit(X_train, y_train, X_test, y_test, "MSE")
+    prediction = br.predict(X_test)
+    print(np.mean(y_test - prediction))
+
+    N =1
+    lr = LINEARREGRESSION(LinearRegression, N)
+    lr.fit(X_train, y_train, X_test, y_test, "MSE")
+    prediction = lr.predict(X_test)
+    #N =1
+
+    #ardr = ARDR(ARDRegression, N)
+    #ardr.fit(X_train, y_train, X_test, y_test, "MSE")
+    #prediction = ardr.predict(X_test)
+    #print(np.mean(y_test - prediction))
+
+    N =1
+    bayesrid = BAYESIANRIDGE(BayesianRidge, N)
+    bayesrid.fit(X_train, y_train, X_test, y_test, "MSE")
+    prediction = bayesrid.predict(X_test)
+    print(np.mean(y_test - prediction))
+
+    N =1
+    elastic = ELASTIC(ElasticNet, N)
+    elastic.fit(X_train, y_train, X_test, y_test, "MSE")
+    prediction = elastic.predict(X_test)
+    print(np.mean(y_test - prediction))
+
+    N =1
+    randomforest = RANDOMFOREST(RandomForestRegressor, N)
+    randomforest.fit(X_train, y_train, X_test, y_test, "MSE")
+    prediction = lr.predict(X_test)
+
+    N =1
+    mnb = GRADIENTBOOSTING(GradientBoostingRegressor, N)
+    mnb.fit(X_train, y_train, X_test, y_test, "MSE")
+    prediction = mnb.predict(X_test)
+    print(np.mean(y_test - prediction))
+
+if __name__ == "__main__":
+    main()
