@@ -28,16 +28,31 @@ def save_obj(obj, name ):
     with open( name + '.pkl', 'wb') as f:
         pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
 
-class LGBM:
+class TEST_PARALLEL():
+    """docstring for ClassName"""
+    def __init__(self, model, N):
+        self.model = ""
+        self.cores_number = int(np.ceil(multiprocessing.cpu_count()/N))
+        print(" TEST MODEL ")
+
+    def fit(self, X_train, y_train, X_test, y_test):
+        self.hash_columns =hash("".join([str(x) for x in list(X_train.columns)]))
+
+    def predict(self, X_test):
+        #print(self.hash_columns)
+        return(self.hash_columns)
+
+
+class LGBM():
     """docstring for ClassName"""
     def __init__(self, lgb, N):
-        self.model = lgb
+        self.model = ""
         self.cores_number = int(np.ceil(multiprocessing.cpu_count()/N))
         print("Lightgbm Cores: ")
 
     def fit(self, X_train, y_train, X_test, y_test):
-        train_data= self.model.Dataset(X_train, label=y_train)
-        lgb_eval  = self.model.Dataset(X_test, y_test, reference=train_data)
+        train_data= lgbm.Dataset(X_train, label=y_train)
+        lgb_eval  = lgbm.Dataset(X_test, y_test, reference=train_data)
 
         error_dict = {"MSE":"l2", "R2":{"l1","l2"}, "MAE":"l1","LOGLOSS": "multi_logloss" }
         error_metric = error_dict[error_type]
@@ -130,7 +145,7 @@ class EXTRATREE():
 
 
 
-class XGBOOST:
+class XGBOOST():
     """docstring for ClassName"""
     def __init__(self, XGBRegressor, N):
         self.model = XGBRegressor
@@ -147,7 +162,7 @@ class XGBOOST:
                         n_estimators=200, 
                         silent=True, 
                         objective='reg:linear', 
-                        nthread=32, 
+                        nthread=2, 
                         gamma=0,
                         min_child_weight=1, 
                         max_delta_step=0, 
@@ -155,14 +170,12 @@ class XGBOOST:
                         colsample_bytree=0.7, 
                         colsample_bylevel=1, 
                         reg_alpha=0, 
-                        reg_lambda=1, 
+                        reg_lambda=1,   
                         scale_pos_weight=1, 
                         seed=1440, 
                         missing=None)
 
-        self.model.fit(X_train, y_train, eval_metric=error_metric, 
-            verbose = False, eval_set = [(X_train, y_train), (X_test, y_test)], #<- Verbose
-            early_stopping_rounds=20)
+        self.model.fit(X_train, y_train, eval_metric=error_metric, verbose = False )# eval_set = [(X_train, y_train), (X_test, y_test)],early_stopping_rounds=20)
 
 
     def predict(self, X_test):
@@ -204,7 +217,7 @@ class BAGGING():
 
 
 
-class LINEARREGRESSION:
+class LINEARREGRESSION():
     """docstring for ClassName"""
     def __init__(self, LinearRegression, N):
         self.cores_number = int(np.ceil(multiprocessing.cpu_count()/N))
@@ -522,8 +535,12 @@ def load_models():
                       "linear"           : { "function": utils_model_genetic.score_model, 
                                              "model_class":LINEARREGRESSION(LinearRegression, N),
                                              "model_name": "linear", 
-                                             "params" : {"n_workers": 16}}
-        }
+                                             "params" : {"n_workers": 16}},
+
+                      "test_parallel"     : { "function": utils_model_genetic.score_model, 
+                                             "model_class":TEST_PARALLEL( "", N),
+                                             "model_name": "test_parallel", 
+                                             "params" : {"n_workers": 16}}        }
     return SKLEARN_MODELS
 
 

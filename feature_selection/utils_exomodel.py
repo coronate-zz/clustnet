@@ -3,14 +3,10 @@ import numpy as np
 import random
 from xgboost import XGBRegressor
 from xgboost import plot_importance
-import utils_model_genetic 
 import pickle
 from sklearn.metrics import mean_absolute_error, r2_score, mean_squared_error 
 import importlib 
 from sklearn import linear_model
-
-
-importlib.reload(utils_model_genetic)
 
 def save_obj(obj, name ):
     with open( name + '.pkl', 'wb') as f:
@@ -22,6 +18,10 @@ def load_obj(name ):
 
 
 def get_exochromoesome(df, models):
+    """
+    transforms a neuronal system into a code that represents the models used in each neuron.
+    This code is used as a chromosome in the genetic algorithm.
+    """
     bits_per_model = int(np.ceil(np.log2(len(models))))
     chromosome = ""
     for n_col in df.columns:
@@ -33,6 +33,11 @@ def get_exochromoesome(df, models):
 
 
 def build_neuronal_system(M, N, models):
+    """
+    Creates a neuranal system represented by a dictionary of M elements each one with N entries.
+    In each system a random model is selected for training and score. Models in upper layers of
+    the neuranl system get information from models in lower levels.
+    """
     n_columns =  list()
     for i in range(N):
         n_name = "N_" +str(i)
@@ -56,6 +61,8 @@ def decode_neuronal_system(neuronal_system, df, SKLEARN_MODELS):
     """
     This funtion transforms the neuronal_system into a set of models that must be trained 
     in order to score the neuronal_system. NEURONAL_SOLUTIONS represent the neuronal network
+        **Note: NEURONAL_SOLUTIONS is different from neuronal_system. The first one reports the score
+        while the second one report the charcateristics of the mdoel to be trained.
 
     NEURONAL_SOLUTIONS[n_col][m_row] = indicates the characteristics of a particular neuron 
     at model_position n_col, m_row.
@@ -251,10 +258,9 @@ def simulate_output(NEURONAL_SOLUTIONS, layer, df_kfolded):
 def get_models_output(NEURONAL_SOLUTIONS, df_kfolded):
     """
     For LAYER N > 0, some models may need the predictions of previous models.
-    this function returns df_exmodel wich contains an entry for every fold and for 
-    the complete data that presents all the output or predictions from the previous
-    model as a DataFrame.
-
+    this function returnsa DataFreme with the output of all the previous models runned.
+    df_exmodel contains an entry for every fold.
+    df_exmodel[fold] = DataFrame cols = Nn_Mm_modelname for all n, m. 
     df_exmodel[fold] = NEURONAL_SOLUTIONS[n_col][m_row]["output][fold] for all n_col, m_row
 
     """
