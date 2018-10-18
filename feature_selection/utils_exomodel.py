@@ -7,6 +7,8 @@ import pickle
 from sklearn.metrics import mean_absolute_error, r2_score, mean_squared_error 
 import importlib 
 from sklearn import linear_model
+from sklearn.model_selection import GroupKFold
+
 
 def save_obj(obj, name ):
     with open( name + '.pkl', 'wb') as f:
@@ -313,21 +315,8 @@ def transform_categorical(df):
     return df
 
 
-def  transform_KFold(df,  y_column, K):
-    """
-    Divides a DataFrame into K sets using the index. 
-    df_kfolded[fold_number]
-        df_kfolded[fold_number]["index"]: randomly selected index 
-                                          for fold_number fold.
+def transform_KFold_random(df, y_column, K):
 
-        df_kfolded[fold_number]["y"]:     subset of the target variable indexed
-                                          by the selected index.
-
-        df_kfolded[fold_number]["data"]:  subset of the DataFrame indexed
-                                          by the selected index. 
-                                          target variable excluded
-        df_kfolded["all_data"][...]
-    """
     df = df.reset_index()
     all_index =  df.index
     df_kfolded = dict()
@@ -371,4 +360,41 @@ def  transform_KFold(df,  y_column, K):
 
     return df_kfolded
 
-    #------------------------------------MODELS----------------------------------------------
+def transform_KFold_groups(df, y_column, K, group_id):
+    """Generates a df_kfolded dictioanry. Each entry in the dictionary conatins a fold which have a 
+    unique set of groups from the groups_id column that are not reapeated in any other fold.
+    For example is group_id is the list od products from a store, then each fold will contain subset
+    of these list and the interection of all the subsets will be null.
+    Also the function have a balanced number of opservation in each fold """
+    df = df.reset_index(drop = True)
+    df_kfolded = dict()
+    unique_vis = np.array(sorted(df[group_id].unique()))
+
+    # Get folds
+    folds = GroupKFold(n_splits=K)
+    fold_ids= []
+    ids = np.arange(df.shape[0])
+
+    for trn_vis, val_vis in folds.split(X=unique_vis, y=unique_vis, groups=unique_vis):
+        fold_ids.append(
+            [
+                ids[df[group_id].isin(unique_vis[trn_vis])],
+                ids[df[group_id].isin(unique_vis[val_vis])]
+            ]
+        )
+    for k, (trn_, val_) in enumerate(fold_ids):
+        df_kfolded[k] = dict()
+        df_kfolded[k]["data"]  = df.iloc[val_]
+        df_kfolded[k]["index"] = val_
+        df_kfolded[k]["y"]     =  df[y_column]
+        del df_kfolded[k]["data"][y_column]
+
+    df_copy = df.copy()
+    df_kfolded["all_data"] = dict()
+    df_kfolded["all_data"]["data"]  =  df_copy
+    df_kfolded["all_data"]["index"] =  df.index
+    df_kfolded["all_data"]["y"]     =  df_copy[y_column]
+    del df_kfolded["all_data"]["data"][y_column]
+
+    return df_kfolded
+
