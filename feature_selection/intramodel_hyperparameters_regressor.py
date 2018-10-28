@@ -17,8 +17,8 @@ import utils_model_genetic
 from sklearn.linear_model import LinearRegression, BayesianRidge,ElasticNet, ARDRegression
 from sklearn.naive_bayes import MultinomialNB, GaussianNB
 import importlib 
-importlib.reload(utils_model_genetic)
-importlib.reload(utils_exomodel)
+#importlib.reload(utils_model_genetic)
+#importlib.reload(utils_exomodel)
 
 
 N =1
@@ -50,34 +50,28 @@ class LGBM():
         self.cores_number = int(np.ceil(multiprocessing.cpu_count()/N))
         print("Lightgbm Cores: ")
 
-    def fit(self, X_train, y_train, X_test, y_test):
-        train_data= lgbm.Dataset(X_train, label=y_train)
-        lgb_eval  = lgbm.Dataset(X_test, y_test, reference=train_data)
+    def fit(self, X_train, y_train, X_test, y_test,error_type = "MAE"):
 
         error_dict = {"MSE":"l2", "R2":{"l1","l2"}, "MAE":"l1","LOGLOSS": "multi_logloss" }
         error_metric = error_dict[error_type]
-        self.model= self.model.train( 
-                {'task': 'train',
-                'boosting_type': 'gbdt',
-                'objective': 'regression',
-                'metric': error_metric,
-                'num_leaves': 31,
-                'learning_rate': 0.05,
-                'feature_fraction': 0.9,
-                'bagging_fraction': 0.8,
-                'bagging_freq': 5,
-                'verbose': 0}, 
-                train_data,
-                num_boost_round=20,
-                valid_sets=lgb_eval,
-                early_stopping_rounds=20)
+
+        self.model= lgb.LGBMRegressor(
+                        num_leaves=31,
+                        learning_rate=0.1,
+                        n_estimators=100,
+                        subsample=.9,
+                        colsample_bytree=.9,
+                        random_state=1 )
+        self.model.fit(
+                X_train, y_train,
+                eval_set=[(X_test,y_test)],
+                early_stopping_rounds=10,
+                verbose=100,
+                eval_metric=error_metric)
 
     def predict(self, X_test):
          prediction=self.model.predict(X_test)
          return(prediction)
-
-
-
 
 
 
@@ -157,26 +151,27 @@ class XGBOOST():
         error_dict = {"MSE":"rmse", "R2":{"l1","l2"}, "MAE":"mae","LOGLOSS": "multi_logloss" }
         error_metric = error_dict[error_type]
 
-        self.model = XGBRegressor(max_depth=0,  #Equals to no limit equivalent to None sklearn
-                        learning_rate=0.05, 
-                        n_estimators=200, 
+        self.model = XGBRegressor(max_depth=6, 
+                        learning_rate=0.07, 
+                        n_estimators=800, 
                         silent=True, 
                         objective='reg:linear', 
-                        nthread=2, 
+                        nthread=1, 
                         gamma=0,
                         min_child_weight=1, 
                         max_delta_step=0, 
-                        subsample=0.85, 
+                        subsample=0.75, 
                         colsample_bytree=0.7, 
                         colsample_bylevel=1, 
                         reg_alpha=0, 
-                        reg_lambda=1,   
+                        reg_lambda=1, 
                         scale_pos_weight=1, 
                         seed=1440, 
                         missing=None)
 
-        self.model.fit(X_train, y_train, eval_metric=error_metric, verbose = False )# eval_set = [(X_train, y_train), (X_test, y_test)],early_stopping_rounds=20)
-
+        self.model.fit(X_train, y_train, eval_metric=error_metric, 
+            verbose = False, eval_set = [(X_train, y_train), (X_test, y_test)],
+            early_stopping_rounds= 20)
 
     def predict(self, X_test):
          prediction=self.model.predict(X_test)

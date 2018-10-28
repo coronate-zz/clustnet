@@ -386,7 +386,7 @@ def transform_KFold_groups(df, y_column, K, group_id):
         df_kfolded[k] = dict()
         df_kfolded[k]["data"]  = df.iloc[val_]
         df_kfolded[k]["index"] = val_
-        df_kfolded[k]["y"]     =  df[y_column]
+        df_kfolded[k]["y"]     =  df.iloc[val_][y_column]
         del df_kfolded[k]["data"][y_column]
 
     df_copy = df.copy()
