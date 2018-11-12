@@ -1,4 +1,3 @@
-
 import pandas as pd 
 import numpy as np 
 import random 
@@ -13,6 +12,8 @@ import pickle
 import threading
 
 #MODEL= "test"; len_population = 0; len_pc = 0; len_pm= 0 ; N_WORKERS =16
+
+
 
 def generate_model_population(columns_list, NEURONAL_SOLUTIONS, n_col, N, max_features):
     POPULATION = dict()
@@ -63,12 +64,6 @@ def generate_model_population(columns_list, NEURONAL_SOLUTIONS, n_col, N, max_fe
         POPULATION[i]["SCORE"]  = np.nan
     return POPULATION
 
-
-def test_genomacode(POPULATION):
-    for p in POPULATION.keys():
-        print("\n\nbaseline \n{}  \nexmodels \n{} \n ----------- GENOMA ---------\n{} ".format( POPULATION_test[p]["baseline_features_chromosome"],
-           POPULATION_test[p]["exmodel_features_chromosome"],  POPULATION_test[p]["GENOMA"]))
-
 def solve_genetic_algorithm(N, PC, PM, N_WORKERS, MAX_ITERATIONS, MODEL, NEURONAL_SOLUTIONS, n_col, columns_list, 
     df_kfolded, df_exmodel = None, max_features=1000, round_prediction= False, parallel_execution = False ):
     """
@@ -81,7 +76,7 @@ def solve_genetic_algorithm(N, PC, PM, N_WORKERS, MAX_ITERATIONS, MODEL, NEURONA
         Cost function             == MODEL
     """
 
-    print("\n\n TEST KFOLDED MEANS: ")
+    print("\n\nTEST KFOLDED MEANS: ")
     for fold in df_kfolded.keys():
         print("FOLD", np.mean(df_kfolded[fold]["y"]))
 
@@ -105,15 +100,16 @@ def solve_genetic_algorithm(N, PC, PM, N_WORKERS, MAX_ITERATIONS, MODEL, NEURONA
         print("\n\n--------------SEQUENTIAL SOLVE----------------")
         POPULATION_X = sequential_solve(POPULATION_X, SOLUTIONS, N_WORKERS, MODEL,
                                       df_kfolded, df_exmodel, "MSE", max_features, round_prediction)
+
     print("\n\n1 -----------------TEST: fenotye in SOLUTIONS acordingly to genoma")
-    test_fenotype_baselinechromosome_SOLUTIONS(SOLUTIONS, NEURONAL_SOLUTIONS, columns_list, n_col)
+    test_fenotype_chromosome_SOLUTIONS(SOLUTIONS, NEURONAL_SOLUTIONS, columns_list, n_col)
 
     POPULATION_X = sort_population(POPULATION_X)
     n_iter = 0 
     while (n_iter <= MAX_ITERATIONS) & STILL_CHANGE:
-
-        POPULATION_Y = cross_mutate( POPULATION_X, NEURONAL_SOLUTIONS, columns_list, n_col, N, PC, PM)
-        #print("\n\n2 . ******************** 2 y 1 deben ser iguales \nTEST POPULATION diff POPULATION_Y")
+        columns_list_copy = columns_list.copy()
+        POPULATION_Y = cross_mutate( POPULATION_X, NEURONAL_SOLUTIONS, columns_list_copy, n_col, N, PC, PM)
+        #print("\n\n******************** baseline_features after cross_mutate")
         #test_baseline_xy(POPULATION_Y, POPULATION_X)
 
         #RESELECT parallel_solve
@@ -123,8 +119,7 @@ def solve_genetic_algorithm(N, PC, PM, N_WORKERS, MAX_ITERATIONS, MODEL, NEURONA
                            df_kfolded, df_exmodel, "MSE", max_features, round_prediction)
             POPULATION_Y = parallel_solve(POPULATION_Y, SOLUTIONS, LOCK, N_WORKERS, MODEL,
                            df_kfolded, df_exmodel, "MSE", max_features, round_prediction)
-            #print("\n\n\nTEST features in POPULATION")
-            #test_baseline_xy(POPULATION_X, POPULATION_Y)
+
         else:
             print("\n\n--------------SEQUENTIAL SOLVE----------------\n POPULATION_X: {} POPULATION_Y {}".format(len(POPULATION_X.keys()), len(POPULATION_Y.keys())))
             POPULATION_X = sequential_solve(POPULATION_X, SOLUTIONS, N_WORKERS, MODEL, 
@@ -134,7 +129,7 @@ def solve_genetic_algorithm(N, PC, PM, N_WORKERS, MAX_ITERATIONS, MODEL, NEURONA
             #print("\n\ntest_baseline_xy 1")
             #test_baseline_xy(POPULATION_X, POPULATION_Y)
         print("\n\n2 -----------------TEST: fenotye in SOLUTIONS acordingly to genoma")
-        test_fenotype_baselinechromosome_SOLUTIONS(SOLUTIONS, NEURONAL_SOLUTIONS, columns_list, n_col)
+        test_fenotype_chromosome_SOLUTIONS(SOLUTIONS, NEURONAL_SOLUTIONS, columns_list, n_col)
         #print("\n\ntest_baseline_xy 2")
         #test_baseline_xy(POPULATION_X, POPULATION_Y)
 
@@ -143,16 +138,15 @@ def solve_genetic_algorithm(N, PC, PM, N_WORKERS, MAX_ITERATIONS, MODEL, NEURONA
         POPULATION_X = select_topn(POPULATION_X, POPULATION_Y, N)
 
         #print("\n\ntest_baseline_xy 3")
-        #test_baseline_xy(POPULATION_X, POPULATION_topN)
+        #test_baseline_xy(POPULATION_X, POPULATION_X)
 
         equal_individuals, max_score = population_summary(POPULATION_X)
 
         n_iter += 1
-        print("\n\n\t\t  --NEXT ITERATION ", n_iter, "--")
         if equal_individuals >= len(POPULATION_X.keys())*.8:
             still_change_count +=1 
             #print("SAME ** {} ".format(still_change_count))
-            if still_change_count >= 20:
+            if still_change_count >= 10:
                 print("\n\n\nGA Solved: \n\tN: {}\n\tPC:{}, \n\tPM: {}\n\tN_WORKERS: {} \n\tMAX_ITERATIONS: {}\n\tMODEL: {}".format( N, PC, PM, N_WORKERS, MAX_ITERATIONS, MODEL ))
                 STILL_CHANGE = False
 
@@ -176,7 +170,21 @@ def test_baseline_xy(POPULATION_X, POPULATION_Y):
            equal_individuals += 1 
     if equal_individuals == len(POPULATION_X.keys()):
         print("\t WARNING: baseline_features are the same in POPULATION_X and POPULATION_Y")
-    print("\t equal_individuals in POPULATION_X and POPULATION_Y: {} out of X{}, Y{} ".format( equal_individuals, len(POPULATION_Y), len(POPULATION_X)))
+    print("\t BASELINE: equal_individuals in POPULATION_X and POPULATION_Y: {} out of X{}, Y{} ".format( equal_individuals, len(POPULATION_Y), len(POPULATION_X)))
+
+
+def test_chromosome_xy(POPULATION_X, POPULATION_Y):
+    equal_individuals = 0
+    for key in POPULATION_Y.keys():
+        baseline_features_y =  POPULATION_Y[key]["baseline_features_chromosome"]
+        baseline_features_x =  POPULATION_X[key]["baseline_features_chromosome"]
+        if baseline_features_x == baseline_features_y:
+           equal_individuals += 1 
+    if equal_individuals == len(POPULATION_X.keys()):
+        print("\t WARNING: baseline_features are the same in POPULATION_X and POPULATION_Y")
+    print("\t CHROMOSOME: equal_individuals in POPULATION_X and POPULATION_Y: {} out of X{}, Y{} ".format( equal_individuals, len(POPULATION_Y), len(POPULATION_X)))
+
+
 
 def parallel_solve(POPULATION_X, SOLUTIONS, LOCK, N_WORKERS, MODEL, df_kfolded, df_exmodel, error_type, max_features, round_prediction):
     """
@@ -212,9 +220,9 @@ def parallel_solve(POPULATION_X, SOLUTIONS, LOCK, N_WORKERS, MODEL, df_kfolded, 
             CORES_PER_SESION = MODEL["params"]["n_workers"]
             time.sleep( random.randint(0,len(started_process)) * .05)
             POPULATION_X[s]["PROCESS"] = multiprocessing.Process( target= MODEL["function"] , 
-                                         args=(POPULATION_X[s], model_name, SOLUTIONS, 
-                                         CORES_PER_SESION, LOCK, MODEL, df_kfolded, df_exmodel, error_type,
-                                          max_features, round_prediction, parallel_execution, ))
+                                        args=(POPULATION_X[s], model_name, SOLUTIONS, 
+                                        CORES_PER_SESION, LOCK, MODEL, df_kfolded, df_exmodel, error_type,
+                                        max_features, round_prediction, parallel_execution, ))
 
             POPULATION_X[s]["PROCESS"].start()
 
@@ -224,6 +232,8 @@ def parallel_solve(POPULATION_X, SOLUTIONS, LOCK, N_WORKERS, MODEL, df_kfolded, 
             POPULATION_X[sp]["PROCESS"].join()
             del POPULATION_X[sp]["PROCESS"]
 
+    #save_obj(SOLUTIONS, "ga_solutions")
+    #All genoma in SOLUTIONS
     for s in POPULATION_X.keys():
         if  POPULATION_X[s]["GENOMA"] in SOLUTIONS.keys():
             POPULATION_X[s]["SCORE"] = SOLUTIONS[POPULATION_X[s]["GENOMA"]]["score"]
@@ -234,7 +244,7 @@ def parallel_solve(POPULATION_X, SOLUTIONS, LOCK, N_WORKERS, MODEL, df_kfolded, 
     return POPULATION_X
 
 
-def sequential_solve(POPULATION_X, SOLUTIONS, LOCK, N_WORKERS, MODEL, df_kfolded, df_exmodel, 
+def sequential_solve(POPULATION_X, SOLUTIONS, N_WORKERS, MODEL, df_kfolded, df_exmodel, 
                     error_type, max_features, round_prediction):
     """
     Each individual in POPULATION_X is assigned to a different process to score it's own
@@ -251,9 +261,8 @@ def sequential_solve(POPULATION_X, SOLUTIONS, LOCK, N_WORKERS, MODEL, df_kfolded
         else:
             CORES_PER_SESION = MODEL["params"]["n_workers"]
             score_model(POPULATION_X[s], model_name, SOLUTIONS, 
-            CORES_PER_SESION, LOCK, MODEL, df_kfolded, df_exmodel, 
-            error_type, max_features, round_prediction, parallel_execution = False)
-    test_fenotype_baselinechromosome_SOLUTIONS(SOLUTIONS, NEURONAL_SOLUTIONS, columns_list, n_col)
+                    CORES_PER_SESION, None, MODEL, df_kfolded, df_exmodel, 
+                    error_type, max_features, round_prediction, parallel_execution = False)
 
     for s in POPULATION_X.keys():
         if  POPULATION_X[s]["GENOMA"] in SOLUTIONS.keys():
@@ -282,7 +291,7 @@ def score_model(INDIVIDUAL, model_name, SOLUTIONS, CORES_PER_SESION, LOCK, MODEL
     #print("\n\nTEST SKLEARN_MODELS: {} \n ERROR_TYPES: {} ".format(SKLEARN_MODELS, ERROR_TYPES))
     model = copy.deepcopy(MODEL["model_class"]) #XGBOOST(XGBRegressor, 1)
     total_error = 0
-    if total_features > max_features or total_features == 0: #or total_features == 0:
+    if total_features > max_features: #or total_features == 0:
         print("WARNING: model not evelauted, number of features bigger than max_features or equal to zero: ", total_features)
         total_error = 1000000000000000000000000000000000000
     else:
@@ -321,7 +330,7 @@ def score_model(INDIVIDUAL, model_name, SOLUTIONS, CORES_PER_SESION, LOCK, MODEL
                             else:
                                 X_train = X_train_baseline
 
-                                y_train = df_kfolded[train_fold]["y"].copy()
+                            y_train = df_kfolded[train_fold]["y"].copy()
 
                         else:
                             X_train_baseline_append = df_kfolded[train_fold]["data"]
@@ -339,14 +348,17 @@ def score_model(INDIVIDUAL, model_name, SOLUTIONS, CORES_PER_SESION, LOCK, MODEL
                 model.fit(X_train, y_train, X_test, y_test)
                 #time.sleep(.001)
                 prediction   = model.predict(X_test)
+                prediction[prediction < 0] = 0
+
                 #print("\n\nPRUEBA prediction: {} \n y_test {}, \n difference: {}".format( prediction[:10], y_test.mean(), np.mean(prediction - y_test)))
-                model = copy.deepcopy(MODEL["model_class"])
                 #if round_prediction:
                 #    prediction = np.round(prediction)
-                error = error_function(y_test, prediction) 
+                error = error_function(y_test, prediction)
                 total_error += error
 
-        score =  - (total_error/(len(df_kfolded.keys())-1))
+
+        genoma = baseline_features_chromosome +  exmodel_features_chromosome
+        score =  - (total_error/(len(df_kfolded.keys())-1)) - total_features*.00001
         genoma_solutions = dict()
         genoma_solutions["score"] = score
         genoma_solutions["genoma"] = genoma
@@ -362,7 +374,7 @@ def score_model(INDIVIDUAL, model_name, SOLUTIONS, CORES_PER_SESION, LOCK, MODEL
         #\n\tlen baseline_features: {} \n\tbaseline_features: {}\
         #\n\t score{} ".format(- (total_error/(len(df_kfolded.keys())-1)), - total_features*.00001,\
         #total_features, len(baseline_features),baseline_features, score))
-        time.sleep( random.randint(0, 64) * .05)
+        time.sleep( random.randint(0,16) * .05)
         LOCK.acquire()
         SOLUTIONS[genoma] = genoma_solutions
         LOCK.release()
@@ -373,7 +385,10 @@ def score_model(INDIVIDUAL, model_name, SOLUTIONS, CORES_PER_SESION, LOCK, MODEL
         #\n\tlen baseline_features: {} \n\tbaseline_features: {}\
         #\n\t score{} ".format(- (total_error/(len(df_kfolded.keys())-1)), - total_features*.00001,\
         #total_features, len(baseline_features),baseline_features, score))
+
         SOLUTIONS[genoma]= genoma_solutions
+
+
 
 
 def test_wrongfold_df_kfolded(df_kfolded):
@@ -452,7 +467,7 @@ def score_genetics(genoma, SOLUTIONS, CORES_PER_SESION, LOCK, MODEL ):
     print("\t\tTIME: {}  MAX_SCORE: {} FINAL_SCORE: {}".format(TOTAL_TIME, max_score, final_score))
 
     LOCK.acquire()
-    SOLUTIONS[genoma]  = final_score
+    SOLUTIONS[genoma]["score"]  = final_score
     LOCK.release()
 
 
@@ -465,12 +480,12 @@ def score_test(genoma, SOLUTIONS,  CORES_PER_SESION, LOCK, MODEL):
         suma += int(i)
     time.sleep(.1)
     LOCK.acquire()
-    SOLUTIONS[genoma] = suma
+    SOLUTIONS[genoma]["score"] = suma
     LOCK.release()
 
 
 def save_solutions(genoma, new_score, SOLUTIONS):
-    SOLUTIONS[genoma] = new_score
+    SOLUTIONS[genoma]["score"] = new_score
 
 
 def get_exmodel_features(NEURONAL_SOLUTIONS, eval_layer):
@@ -497,8 +512,7 @@ def sort_population(POPULATION_X):
     for i in POPULATION_sorted:
         POPULATION_NEW[cont] = i[1]
         cont += 1
-    #print("\n\nTEST sort_population msut be different")
-    #test_baseline_xy(POPULATION_X, POPULATION_NEW)
+    test_baseline_xy(POPULATION_X, POPULATION_NEW)
     return POPULATION_NEW
 
 def population_summary(POPULATION_X):
@@ -522,7 +536,12 @@ def population_summary(POPULATION_X):
             min_score = individual_score
     promedio = suma/len(POPULATION_X_copy.keys())
     equal_individuals = len(lista_genomas) - len(set(lista_genomas))
-    print("\n\nTEST population_summary: \n\tTOTAL SCORE: {} \n\tMEAN SCORE: {} \n\t MAX_SCORE: {} \n\tMIN_SCORE: {} \n\t BASELINE FEAT: {} \n\t EXMODEL FEAT: {}".format(suma, promedio, max_score, min_score, best_baseline_features, best_exmodel_features))
+    print("\n\nTEST population_summary: \
+        \n\tTOTAL SCORE: {} \n\tMEAN SCORE: {} \
+        \n\t MAX_SCORE: {} \n\tMIN_SCORE: {} \
+        \n\t BASELINE FEAT: {} \n\t EXMODEL FEAT: {}".format(suma, promedio, max_score,\
+         min_score, best_baseline_features, best_exmodel_features))
+
     return equal_individuals, max_score
 
 
@@ -594,11 +613,11 @@ def cross_mutate( POPULATION_X, NEURONAL_SOLUTIONS, columns_list, n_col, N, PC, 
 
         pm = random.uniform(1,0)
         mutation_gen = random.randint(0, GENLONG-1)
+        mutated_genoma = POPULATION_Y[j]["GENOMA"]
 
         if pm < PM:
             #PERFORM MUTATION
 
-            mutated_genoma = POPULATION_Y[j]["GENOMA"]
             start = mutated_genoma
             if mutated_genoma[mutation_gen] =="1":
                 mutated_genoma = list(mutated_genoma)
@@ -611,9 +630,9 @@ def cross_mutate( POPULATION_X, NEURONAL_SOLUTIONS, columns_list, n_col, N, PC, 
 
             end = mutated_genoma
 
-            POPULATION_Y[j]["GENOMA"] = mutated_genoma
-            POPULATION_Y[j]["baseline_features_chromosome"] = mutated_genoma[:len(columns_list)]
-            POPULATION_Y[j]["exmodel_features_chromosome"]  = mutated_genoma[len(columns_list):]
+        POPULATION_Y[j]["GENOMA"] = mutated_genoma
+        POPULATION_Y[j]["baseline_features_chromosome"] = mutated_genoma[:len(columns_list)]
+        POPULATION_Y[j]["exmodel_features_chromosome"]  = mutated_genoma[len(columns_list):]
 
     #print("\n\n0 ******************** deben ser iguales\nTEST POPULATION diff POPULATION_Y")
     #test_baseline_xy(POPULATION_Y, POPULATION_X) #Prueba de que el genotipo ha sido efectivo
@@ -624,8 +643,13 @@ def cross_mutate( POPULATION_X, NEURONAL_SOLUTIONS, columns_list, n_col, N, PC, 
     POPULATION_Y = change_fenotype_using_genoma(POPULATION_Y, NEURONAL_SOLUTIONS, n_col, columns_list)
     print("\n\n**Second test in test_fenotype_chromosome_POPULATION")
     test_fenotype_chromosome_POPULATION(POPULATION_Y, NEURONAL_SOLUTIONS, columns_list, n_col)
+    #print("\n\n2 ******************** deben cambiar \nTEST POPULATION diff POPULATION_Y")
+    #test_baseline_xy(POPULATION_Y, POPULATION_X) #Prueba de que el genotipo ha sido efectivo
 
     return POPULATION_Y
+
+
+
 
 
 def  change_fenotype_using_genoma(POPULATION, NEURONAL_SOLUTIONS, n_col, columns_list):
@@ -636,7 +660,6 @@ def  change_fenotype_using_genoma(POPULATION, NEURONAL_SOLUTIONS, n_col, columns
     for individual in POPULATION.keys():
         del POPULATION[individual]["exmodel_features"]
         del POPULATION[individual]["baseline_features"]
-
     for individual in POPULATION.keys():
         cont = 0
         baseline_all_features = columns_list.copy()
@@ -654,7 +677,7 @@ def  change_fenotype_using_genoma(POPULATION, NEURONAL_SOLUTIONS, n_col, columns
             if int(chromosome) == 1:
                 feature_inbit = exmodel_features[cont]
                 exmodel_features_selected.append(exmodel_features[cont])
-            cont += 1 
+            cont += 1
 
         POPULATION[individual]["exmodel_features"] = exmodel_features_selected
         POPULATION[individual]["baseline_features"] = baseline_features_selected
@@ -696,10 +719,14 @@ def  test_fenotype_chromosome_POPULATION(POPULATION, NEURONAL_SOLUTIONS, columns
                 if feature_inbit in POPULATION[individual]["exmodel_features"]:
                     raise ValueError("ERROR: feature in exmodel_features while {} chromosome is 0: {} ".format(cont, feature_inbit))
             cont +=1 
+
+        if POPULATION[individual]["GENOMA"] != POPULATION[individual]["baseline_features_chromosome"] + POPULATION[individual]["exmodel_features_chromosome"]:
+            raise   ValueError("GENOMA differ from baseline_features_chromosome + exmodel_features_chromosome")  
+
     print("\n\t**TEST PASSED: test_fenotype_chromosome_POPULATION")
 
 
-def  test_fenotype_baselinechromosome_SOLUTIONS(SOLUTIONS, NEURONAL_SOLUTIONS, columns_list, n_col):
+def  test_fenotype_chromosome_SOLUTIONS(SOLUTIONS, NEURONAL_SOLUTIONS, columns_list, n_col):
     """ For each individual in POPULATION, compares that the fenotye(selected_features) correspond 
     to the sequence of the bits in the chromosome.
     """
@@ -729,11 +756,7 @@ def  test_fenotype_baselinechromosome_SOLUTIONS(SOLUTIONS, NEURONAL_SOLUTIONS, c
                 if feature_inbit in SOLUTIONS[individual]["exmodel_features"]:
                     raise ValueError("ERROR: feature in exmodel_features while {} chromosome is 0: {} ".format(cont, feature_inbit))
             cont +=1 
-    genoma = SOLUTIONS[individual]["baseline_features_chromosome"] + SOLUTIONS[individual]["exmodel_features_chromosome"]
-    if individual != genoma:
-        raise ValueError("Genoma SOLUTIONS[individual][baseline_features] difers from individual x where x SOLUTIONS[X]")
-    print("\n\t**TEST PASSED: test_fenotype_baselinechromosome_SOLUTIONS")
-
+    print("\n\t**TEST PASSED: test_fenotype_chromosome_SOLUTIONS")
 
 
 def report_genetic_results(genoma, MODEL):
@@ -751,10 +774,6 @@ def report_genetic_results(genoma, MODEL):
     print("\n\n ** BEST GA **: \n\tgenlong: {}\n\tpc: {} \n\tPM: {}".format(POPULATION_SIZE, PC, PM ))
 
 
-
-def print_SOLUTIONS(SOLUTIONS):
-    for key in SOLUTIONS.keys():
-        print("Key: {} \n\t Score: {} \n\t baseline_features: {}".format(key, SOLUTIONS[key]["score"], SOLUTIONS[key]["baseline_features"]))
 
 def test_equal_squares(SOLUTIONS):
     equal_scores_keys = dict()
